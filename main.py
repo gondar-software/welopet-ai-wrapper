@@ -53,7 +53,6 @@ async def run(url: str = None, urgent: bool = False):
 
             while True:
                 status = await job.status()
-                print(f"Current job status: {status}")
                 
                 if status == "COMPLETED":
                     output = await job.output()
@@ -104,8 +103,12 @@ async def prompt(query: dict):
             if AVAILABLE_NORMAL_WORKER > 0:
                 output = await run(url)
             else:
+                if AVAILABLE_NORMAL_WORKER == 0 and FILLED_NORMAL_PODS:
+                    print("URGENT: (NORMAL MODE) Need to increase max value of workers")
                 output = await run(url, urgent=True)
         else:
+            if AVAILABLE_URGENT_WORKER == 0 and FILLED_URGENT_PODS:
+                print("URGENT: (URGENT MODE) Need to increase number of full time active workers")
             output = await run(url)
 
         base64_image = output["message"]
