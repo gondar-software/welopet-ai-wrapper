@@ -3,8 +3,10 @@ import json
 import os
 import asyncio
 import aiohttp
+import base64
+import uuid
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from runpod import AsyncioEndpoint, AsyncioJob
 from typing import Dict, Any, Optional, Tuple
@@ -15,6 +17,7 @@ URGENT_ENDPOINT_ID = os.getenv("URGENT_ENDPOINT_ID")
 NORMAL_ENDPOINT_ID = os.getenv("NORMAL_ENDPOINT_ID")
 MAX_URGENT_WORKER = os.getenv("MAX_URGENT_WORKER", 2)
 MAX_NORMAL_WORKER = os.getenv('MAX_URGENT_WORKER', 3)
+ORIGIN_IMAGE_URL = os.getenv('ORIGIN_IMAGE_URL')
 AVAILABLE_URGENT_WORKER = MAX_URGENT_WORKER
 AVAILABLE_NORMAL_WORKER = 0
 FILLED_URGENT_PODS = False
@@ -24,10 +27,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["GET", "POST"],
-    allow_headers=["Authorization"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+images = {}
 
 def calc_available():
     global AVAILABLE_NORMAL_WORKER, AVAILABLE_URGENT_WORKER, FILLED_URGENT_PODS, FILLED_NORMAL_POS
@@ -42,27 +48,11 @@ def calc_available():
     AVAILABLE_NORMAL_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
     FILLED_NORMAL_POS == AVAILABLE_NORMAL_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_NORMAL_WORKER
 
-async def run(query: dict = None, urgent: bool = False):
-    """
-    Run a job with the given prompt or default prompt from base-packet.json
-    
-    Args:
-        query: Optional dictionary containing the prompt data
-        
-    Returns:
-        Dictionary containing the job output
-        
-    Raises:
-        HTTPException: If the job fails or there's an error reading the file
-    """
+async def run(url: str = None, urgent: bool = False):
     try:
-        if query is None:
-            with open('base-packet.json', 'r', encoding='utf-8') as file:
-                query = json.load(file)
-
         async with aiohttp.ClientSession() as session:
             endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
-            job: AsyncioJob = await endpoint.run(query)
+            job: AsyncioJob = await endpoint.run(ORIGIN_IMAGE_URL if url is None else url)
 
             while True:
                 status = await job.status()
@@ -88,12 +78,6 @@ async def run(query: dict = None, urgent: bool = False):
 
 @app.post('/api/start')
 async def start():
-    """
-    Start a job if workers are available
-    
-    Returns:
-        Job output if started, otherwise error message
-    """
     try:
         calc_available()
         
@@ -111,36 +95,33 @@ async def start():
             status_code=500,
             detail=f"Error checking worker availability: {str(e)}"
         )
-
+    
 @app.post('/api/prompt')
 async def prompt(query: dict):
-    """
-    Execute a job with the provided prompt.
-    
-    Args:
-        prompt: Dictionary containing the prompt data (from request body)
-        
-    Returns:
-        Dictionary containing the job output
-        
-    Raises:
-        HTTPException: If execution fails
-    """
     try:
         isUrgent = query.get("urgent", False)
+        url = query.get("url", ORIGIN_IMAGE_URL)
+        calc_available()
+
         if isUrgent:
-            calc_available()
             if AVAILABLE_NORMAL_WORKER > 0:
-                run(query)
+                return await run(url)
             elif AVAILABLE_URGENT_WORKER > 0:
-                run(query, urgent=True)
+                return await run(url, urgent=True)
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="No available workers at this time"
+                )
+        else:
+            if AVAILABLE_NORMAL_WORKER > 0:
+                return await run(url)
             else:
                 raise HTTPException(
                     status_code=500,
                     detail="No available workers at this time"
                 )
 
-        return await run(query)
     except Exception as e:  
         raise HTTPException(
             status_code=500,
