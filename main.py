@@ -103,27 +103,16 @@ async def prompt(query: dict):
         if isUrgent:
             if AVAILABLE_NORMAL_WORKER > 0:
                 output = await run(url)
-            elif AVAILABLE_URGENT_WORKER > 0:
+            else:
                 output = await run(url, urgent=True)
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="No available workers at this time"
-                )
         else:
-            if AVAILABLE_NORMAL_WORKER > 0:
-                output = await run(url)
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="No available workers at this time"
-                )
+            output = await run(url)
 
         base64_image = output["message"]
         decoded_bytes = base64.b64decode(base64_image)
         return Response(
             content=decoded_bytes,
-            media_type=f"image/png"  # e.g., "image/jpeg"
+            media_type=f"image/png"
         )
 
     except Exception as e:  
