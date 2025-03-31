@@ -10,8 +10,7 @@ from runpod import AsyncioEndpoint, AsyncioJob
 
 load_dotenv()
 runpod.api_key = os.getenv("RUNPOD_API")
-ENDPOINT_ID = os.getenv("ENDPOINT_ID")
-MAX_WORKER = os.getenv("MAX_WORKER", 30)
+# MAX_WORKER = os.getenv("MAX_WORKER", 30)
 ORIGIN_IMAGE_URL = os.getenv('ORIGIN_IMAGE_URL')
 # FILLED_URGENT_PODS = False
 
@@ -40,12 +39,15 @@ images = {}
 #     AVAILABLE_NORMAL_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
 #     FILLED_NORMAL_PODS = AVAILABLE_NORMAL_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_NORMAL_WORKER
 
-async def run(url: str = None, urgent: bool = False):
+async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
     try:
         async with aiohttp.ClientSession() as session:
             # endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
-            endpoint = AsyncioEndpoint(ENDPOINT_ID, session)
-            job: AsyncioJob = await endpoint.run({ "url": ORIGIN_IMAGE_URL if url is None else url })
+            endpoint = AsyncioEndpoint(os.getenv(f"ENDPOINT_ID{workflow_id}"), session)
+            job: AsyncioJob = await endpoint.run({ 
+                "url": ORIGIN_IMAGE_URL if url is None else url,
+                "workflow_id": workflow_id
+            })
 
             while True:
                 status = await job.status()
@@ -111,7 +113,28 @@ async def prompt(query: dict):
         decoded_bytes = base64.b64decode(base64_image)
         return Response(
             content=decoded_bytes,
-            media_type=f"image/png"
+            media_type=f"image/jpeg"
+        )
+
+    except Exception as e:  
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during job execution: {str(e)}"
+        )
+    
+@app.post('/api/v2/prompt')
+async def prompt2(query: dict):
+    try:
+        url = query.get("url", ORIGIN_IMAGE_URL)
+        workflow_id = query.get("workflow_id", 1)
+
+        output = await run(url, urgent=True, workflow_id=workflow_id)
+
+        base64_image = output["message"]
+        decoded_bytes = base64.b64decode(base64_image)
+        return Response(
+            content=decoded_bytes,
+            media_type=f"image/jpeg"
         )
 
     except Exception as e:  
