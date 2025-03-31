@@ -10,15 +10,10 @@ from runpod import AsyncioEndpoint, AsyncioJob
 
 load_dotenv()
 runpod.api_key = os.getenv("RUNPOD_API")
-URGENT_ENDPOINT_ID = os.getenv("URGENT_ENDPOINT_ID")
-NORMAL_ENDPOINT_ID = os.getenv("NORMAL_ENDPOINT_ID")
-MAX_URGENT_WORKER = os.getenv("MAX_URGENT_WORKER", 2)
-MAX_NORMAL_WORKER = os.getenv('MAX_URGENT_WORKER', 3)
+ENDPOINT_ID = os.getenv("ENDPOINT_ID")
+MAX_WORKER = os.getenv("MAX_WORKER", 30)
 ORIGIN_IMAGE_URL = os.getenv('ORIGIN_IMAGE_URL')
-AVAILABLE_URGENT_WORKER = MAX_URGENT_WORKER
-AVAILABLE_NORMAL_WORKER = 0
-FILLED_URGENT_PODS = False
-FILLED_NORMAL_PODS = True
+# FILLED_URGENT_PODS = False
 
 app = FastAPI()
 
@@ -32,23 +27,24 @@ app.add_middleware(
 
 images = {}
 
-def calc_available():
-    global AVAILABLE_NORMAL_WORKER, AVAILABLE_URGENT_WORKER, FILLED_URGENT_PODS, FILLED_NORMAL_PODS
+# def calc_available():
+#     global AVAILABLE_NORMAL_WORKER, AVAILABLE_URGENT_WORKER, FILLED_URGENT_PODS, FILLED_NORMAL_PODS
 
-    endpoint = runpod.Endpoint(URGENT_ENDPOINT_ID)
-    endpoint_health = endpoint.health()
-    AVAILABLE_URGENT_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
-    FILLED_URGENT_PODS = AVAILABLE_URGENT_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_URGENT_WORKER
+#     endpoint = runpod.Endpoint(URGENT_ENDPOINT_ID)
+#     endpoint_health = endpoint.health()
+#     AVAILABLE_URGENT_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
+#     FILLED_URGENT_PODS = AVAILABLE_URGENT_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_URGENT_WORKER
     
-    endpoint = runpod.Endpoint(NORMAL_ENDPOINT_ID)
-    endpoint_health = endpoint.health()
-    AVAILABLE_NORMAL_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
-    FILLED_NORMAL_PODS = AVAILABLE_NORMAL_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_NORMAL_WORKER
+#     endpoint = runpod.Endpoint(NORMAL_ENDPOINT_ID)
+#     endpoint_health = endpoint.health()
+#     AVAILABLE_NORMAL_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
+#     FILLED_NORMAL_PODS = AVAILABLE_NORMAL_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_NORMAL_WORKER
 
 async def run(url: str = None, urgent: bool = False):
     try:
         async with aiohttp.ClientSession() as session:
-            endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
+            # endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
+            endpoint = AsyncioEndpoint(ENDPOINT_ID, session)
             job: AsyncioJob = await endpoint.run({ "url": ORIGIN_IMAGE_URL if url is None else url })
 
             while True:
@@ -72,44 +68,44 @@ async def run(url: str = None, urgent: bool = False):
             detail=f"An error occurred: {str(e)}"
         )
 
-@app.post('/api/start')
-async def start():
-    try:
-        calc_available()
+# @app.post('/api/start')
+# async def start():
+#     try:
+#         calc_available()
         
-        if AVAILABLE_NORMAL_WORKER == 0:
-            if not FILLED_NORMAL_PODS:
-                return await run()
-            else:
-                raise HTTPException(
-                    status_code=429,
-                    detail="No available workers at this time"
-                )
+#         if AVAILABLE_NORMAL_WORKER == 0:
+#             if not FILLED_NORMAL_PODS:
+#                 return await run()
+#             else:
+#                 raise HTTPException(
+#                     status_code=429,
+#                     detail="No available workers at this time"
+#                 )
             
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error checking worker availability: {str(e)}"
-        )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error checking worker availability: {str(e)}"
+#         )
     
 @app.post('/api/prompt')
 async def prompt(query: dict):
     try:
-        isUrgent = query.get("urgent", False)
+        # isUrgent = query.get("urgent", False)
         url = query.get("url", ORIGIN_IMAGE_URL)
-        calc_available()
+        # calc_available()
 
-        if isUrgent:
-            if AVAILABLE_NORMAL_WORKER > 0:
-                output = await run(url)
-            else:
-                if AVAILABLE_NORMAL_WORKER == 0 and FILLED_NORMAL_PODS:
-                    print("URGENT: (NORMAL MODE) Need to increase max value of workers")
-                output = await run(url, urgent=True)
-        else:
-            if AVAILABLE_URGENT_WORKER == 0 and FILLED_URGENT_PODS:
-                print("URGENT: (URGENT MODE) Need to increase number of full time active workers")
-            output = await run(url)
+        # if isUrgent:
+            # if AVAILABLE_NORMAL_WORKER > 0:
+                # output = await run(url)
+            # else:
+            #     if AVAILABLE_NORMAL_WORKER == 0 and FILLED_NORMAL_PODS:
+            #         print("URGENT: (NORMAL MODE) Need to increase max value of workers")
+        output = await run(url, urgent=True)
+        # else:
+        #     if AVAILABLE_URGENT_WORKER == 0 and FILLED_URGENT_PODS:
+        #         print("URGENT: (URGENT MODE) Need to increase number of full time active workers")
+        #     output = await run(url)
 
         base64_image = output["message"]
         decoded_bytes = base64.b64decode(base64_image)

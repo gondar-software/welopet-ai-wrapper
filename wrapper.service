@@ -1,0 +1,14 @@
+[Unit]
+Description=Wrapper Application
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/wrapper
+Environment="PATH=/home/ubuntu/wrapper/venv/bin"
+ExecStart=/home/ubuntu/wrapper/venv/bin/python -m main
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
