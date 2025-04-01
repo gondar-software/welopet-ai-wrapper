@@ -45,8 +45,7 @@ async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
             # endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
             endpoint = AsyncioEndpoint(os.getenv(f"ENDPOINT_ID{workflow_id}"), session)
             job: AsyncioJob = await endpoint.run({ 
-                "url": ORIGIN_IMAGE_URL if url is None else url,
-                "workflow_id": workflow_id
+                "url": ORIGIN_IMAGE_URL if url is None else url
             })
 
             while True:
