@@ -141,6 +141,27 @@ async def prompt2(query: dict):
             status_code=500,
             detail=f"Error during job execution: {str(e)}"
         )
+    
+@app.post('/api/v3/prompt')
+async def prompt2(query: dict):
+    try:
+        url = query.get("url", ORIGIN_IMAGE_URL)
+        workflow_id = query.get("workflow_id", 3)
+
+        output = await run(url, urgent=True, workflow_id=workflow_id)
+
+        base64_video = output["message"]
+        decoded_bytes = base64.b64decode(base64_video)
+        return Response(
+            content=decoded_bytes,
+            media_type=f"video/mp4"
+        )
+
+    except Exception as e:  
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during job execution: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
