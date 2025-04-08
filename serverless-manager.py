@@ -11,6 +11,7 @@ RUNPOD_API = os.getenv('RUNPOD_API')
 
 MAX_WORKERS = [150, 20, 20]
 MIN_WORKERS = [2, 1, 1]
+IDLE_TIMEOUTS = [5, 30, 30]
 NUM_ENDPOINT = 3
 
 runpod.api_key = RUNPOD_API
@@ -38,6 +39,7 @@ def update_endpoint(endpointId, workers):
                 "Authorization": f"Bearer {RUNPOD_API}"
             },
             json={
+                "idleTimeout": IDLE_TIMEOUTS[endpointId],
                 "workersMax": MAX_WORKERS[endpointId],
                 "workersMin": workers
             }
