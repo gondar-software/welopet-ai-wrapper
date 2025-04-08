@@ -10,7 +10,7 @@ load_dotenv()
 RUNPOD_API = os.getenv('RUNPOD_API')
 
 MAX_WORKERS = [150, 20, 20]
-MIN_WORKERS = [2, 0, 0]
+MIN_WORKERS = [2, 1, 1]
 IDLE_TIMEOUTS = [5, 30, 30]
 NUM_ENDPOINT = 3
 
