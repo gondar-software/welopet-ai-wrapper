@@ -8,59 +8,37 @@ from dotenv import load_dotenv
 load_dotenv()
 
 RUNPOD_API = os.getenv('RUNPOD_API')
-ENDPOINT_ID1 = os.getenv('ENDPOINT_ID1')
+
+MAX_WORKERS = [150, 20, 20]
+MIN_WORKERS = [2, 1, 1]
+NUM_ENDPOINT = 3
 
 runpod.api_key = RUNPOD_API
-requests_history = deque(
-    [0, 0, 0, 0],
-    maxlen=4
-)
+requests_histories = [deque([0, 0, 0, 0], maxlen=4) for i in range(NUM_ENDPOINT)]
 weights = [0.1, 0.2, 0.3, 0.4]
-extra_rate = 0.075
+extra_rate = 0.0075
 
 def calc_workers(endpointId):
-    endpoint = runpod.Endpoint(endpointId)
+    endpoint = runpod.Endpoint(os.getenv(f'ENDPOINT_ID{endpointId + 1}'))
     endpoint_health = endpoint.health()
     num_requests = endpoint_health["jobs"]["inProgress"] + endpoint_health["jobs"]["inQueue"]
 
-    requests_history.append(num_requests)
-    workers= min(150, max(round(sum(value * weight for value, weight in zip(requests_history, weights)) + num_requests * extra_rate), 2))
+    requests_histories[endpointId].append(num_requests)
+    workers = min(MAX_WORKERS[endpointId], 
+        round(sum(value * weight for value, weight in zip(requests_histories[endpointId], weights)) + max(num_requests * extra_rate, MIN_WORKERS[endpointId])))
 
     return workers
 
 def update_endpoint(endpointId, workers):
     try:
         requests.patch(
-            f"https://rest.runpod.io/v1/endpoints/{endpointId}",
+            f"https://rest.runpod.io/v1/endpoints/{os.getenv(f'ENDPOINT_ID{endpointId + 1}')}",
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {RUNPOD_API}"
             },
             json={
-                # "allowedCudaVersions": [
-                #     "12.7"
-                # ],
-                # "cpuFlavorIds": [
-                #     "cpu3c"
-                # ],
-                # "dataCenterIds": [
-                #     "EU-RO-1",
-                #     "CA-MTL-1"
-                # ],
-                # "executionTimeoutMs": 600000,
-                # "flashboot": true,
-                # "gpuCount": 1,
-                # "gpuTypeIds": [
-                #     "NVIDIA GeForce RTX 4090"
-                # ],
-                # "idleTimeout": 5,
-                # "name": "",
-                # "networkVolumeId": "",
-                # "scalerType": "QUEUE_DELAY",
-                # "scalerValue": 4,
-                # "templateId": "30zmvf89kd",
-                # "vcpuCount": 2,
-                "workersMax": workers,
+                "workersMax": MAX_WORKERS[endpointId],
                 "workersMin": workers
             }
         )
@@ -72,11 +50,10 @@ def update_endpoint(endpointId, workers):
 if __name__ == "__main__":
     try:
         while True:
-            workers = calc_workers(ENDPOINT_ID1)
-            print(workers)
-            update_endpoint(ENDPOINT_ID1, workers)
-            
+            for i in range(NUM_ENDPOINT):
+                workers = calc_workers(i)
+                update_endpoint(i, workers)
+                
             time.sleep(2)
-            
     except KeyboardInterrupt:
         print("\nStopping manager...")
