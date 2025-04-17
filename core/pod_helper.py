@@ -34,7 +34,7 @@ def create_pod_with_network_volume(
                 "Authorization": f"Bearer {RUNPOD_API}"
             },
             json={
-                "env": envVarienv_variablesables,
+                "env": env_variables,
                 "gpuCount": gpu_count,
                 "gpuTypeIds": gpu_type_ids,
                 "imageName": "runpod/vscode-server:0.0.0",
@@ -63,14 +63,16 @@ def create_pod_with_network_volume(
         print(e)
         return {
             "type": "error",
-            "message": f"{e.message}"
+            "message": f"{e}"
         }
 
 def get_pod_info(
-    pod_id
+    pod_id,
+    retries=SERVER_CHECK_RETRIES, 
+    delay=SERVER_CHECK_DELAY
 ):
     try:
-        while True:
+        for i in range(retries):
             response = requests.get(f"https://rest.runpod.io/v1/pods/{pod_id}",
                 headers={
                     "Authorization": f"Bearer {RUNPOD_API}"
@@ -80,7 +82,7 @@ def get_pod_info(
             if response.status_code == 200:
                 data = response.json()
                 if data.get("portMappings", None) is None or data.get("publicIp", "") == "":
-                    time.sleep(1)
+                    time.sleep(delay / 1000)
                     continue
                     
                 return {
@@ -100,7 +102,7 @@ def get_pod_info(
         print(e)
         return {
             "type": "error",
-            "message": f"{e.message}"
+            "message": f"{e}"
         }
 
 def delete_pod(
@@ -129,7 +131,7 @@ def delete_pod(
         print(e)
         return {
             "type": "error",
-            "message": f"{e.message}"
+            "message": f"{e}"
         }
 
 def command_to_pod(
@@ -137,7 +139,11 @@ def command_to_pod(
     public_ip, 
     port_mappings
 ):
-    command = f"ssh root@{public_ip} -p {ssh_port} -i ./runpod.pem '{command}'"
+    ssh_port = port_mappings.get("22", 22)
+    command = (
+        f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+        f"root@{public_ip} -p {ssh_port} -i ./runpod.pem '{command}'"
+    )
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     print(result.stdout)
     
@@ -146,11 +152,12 @@ def run_comfyui_server(
     public_ip, 
     port_mappings
 ):
-    ssh_port = port_mappings.get("22")
     command = (
+        f"apt update && "
+        f"apt install -y screen && "
         f"mkdir -p {OUTPUT_DIRECTORY} && "
         f"cd /workspace/ComfyUI && "
-        f"nohup ./venv/bin/python3 -m main --listen --disable-auto-launch --disable-metadata --output-directory {OUTPUT_DIRECTORY} > /dev/null 2>&1 &"
+        f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-auto-launch --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
     )
     command_to_pod(command, public_ip, port_mappings)
     if check_comfyui_server_started(pod_id):
