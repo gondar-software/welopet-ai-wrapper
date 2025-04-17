@@ -1,6 +1,7 @@
 import time
 import requests
 import os
+import subprocess
 
 BASE_GPU_TYPE_IDS = [
     "NVIDIA RTX A6000"
@@ -14,14 +15,17 @@ BASE_PORTS = [
     "22/tcp"     # ssh access port
 ]
 RUNPOD_API = os.getenv('RUNPOD_API')
+OUTPUT_DIRECTORY = os.getenv('OUTPUT_DIRECTORY')
+SERVER_CHECK_RETRIES = int(os.getenv('SERVER_CHECK_RETRIES', 1200))
+SERVER_CHECK_DELAY = int(os.getenv('SERVER_CHECK_DELAY', 500))
 
 def create_pod_with_network_volume(
-    networkVolumeId, 
-    podName, 
-    gpuTypeIds = BASE_GPU_TYPE_IDS, 
-    envVariables = BASE_ENV_VARIABLES, 
-    gpuCount = BASE_GPU_COUNT, 
-    ports = BASE_PORTS
+    network_volume_id, 
+    pod_name, 
+    gpu_type_ids=BASE_GPU_TYPE_IDS, 
+    env_variables=BASE_ENV_VARIABLES, 
+    gpu_count=BASE_GPU_COUNT, 
+    ports=BASE_PORTS
 ):
     try:
         response = requests.post("https://rest.runpod.io/v1/pods",
@@ -30,12 +34,12 @@ def create_pod_with_network_volume(
                 "Authorization": f"Bearer {RUNPOD_API}"
             },
             json={
-                "env": envVariables,
-                "gpuCount": gpuCount,
-                "gpuTypeIds": gpuTypeIds,
+                "env": envVarienv_variablesables,
+                "gpuCount": gpu_count,
+                "gpuTypeIds": gpu_type_ids,
                 "imageName": "runpod/vscode-server:0.0.0",
-                "name": podName,
-                "networkVolumeId": networkVolumeId,
+                "name": pod_name,
+                "networkVolumeId": network_volume_id,
                 "supportPublicIp": True,
                 "ports": ports
             }
@@ -62,10 +66,12 @@ def create_pod_with_network_volume(
             "message": f"{e.message}"
         }
 
-def get_pod_info(podId):
+def get_pod_info(
+    pod_id
+):
     try:
         while True:
-            response = requests.get(f"https://rest.runpod.io/v1/pods/{podId}",
+            response = requests.get(f"https://rest.runpod.io/v1/pods/{pod_id}",
                 headers={
                     "Authorization": f"Bearer {RUNPOD_API}"
                 }
@@ -74,7 +80,7 @@ def get_pod_info(podId):
             if response.status_code == 200:
                 data = response.json()
                 if data.get("portMappings", None) is None or data.get("publicIp", "") == "":
-                    time.sleep(1000)
+                    time.sleep(1)
                     continue
                     
                 return {
@@ -97,9 +103,11 @@ def get_pod_info(podId):
             "message": f"{e.message}"
         }
 
-def delete_pod(podId):
+def delete_pod(
+    pod_id
+):
     try:
-        response = requests.delete(f"https://rest.runpod.io/v1/pods/{podId}",
+        response = requests.delete(f"https://rest.runpod.io/v1/pods/{pod_id}",
             headers={
                 "Authorization": f"Bearer {RUNPOD_API}"
             }
@@ -123,3 +131,52 @@ def delete_pod(podId):
             "type": "error",
             "message": f"{e.message}"
         }
+
+def command_to_pod(
+    command, 
+    public_ip, 
+    port_mappings
+):
+    command = f"ssh root@{public_ip} -p {ssh_port} -i ./runpod.pem '{command}'"
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    print(result.stdout)
+    
+def run_comfyui_server(
+    pod_id, 
+    public_ip, 
+    port_mappings
+):
+    ssh_port = port_mappings.get("22")
+    command = (
+        f"mkdir -p {OUTPUT_DIRECTORY} && "
+        f"cd /workspace/ComfyUI && "
+        f"nohup ./venv/bin/python3 -m main --listen --disable-auto-launch --disable-metadata --output-directory {OUTPUT_DIRECTORY} > /dev/null 2>&1 &"
+    )
+    command_to_pod(command, public_ip, port_mappings)
+    if check_comfyui_server_started(pod_id):
+        return True
+    else:
+        return False
+
+def check_comfyui_server_started(
+    pod_id, 
+    retries=SERVER_CHECK_RETRIES, 
+    delay=SERVER_CHECK_DELAY
+):
+    url = f"https://{pod_id}-8188.proxy.runpod.net/"
+    for i in range(retries):
+        try:
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                print(f"ComfyUI server is running on POD.")
+                return True
+        except requests.RequestException as e:
+            return False
+
+        time.sleep(delay / 1000)
+
+    print(
+        f"Failed to connect to server at {url} after {retries} attempts."
+    )
+    return False
