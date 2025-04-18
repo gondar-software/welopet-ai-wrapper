@@ -26,6 +26,9 @@ class PodManager:
         self.failed_prompts = dict[str, Prompt]()
         self.lock = threading.Lock()
 
+        thread = Thread(target=self.process)
+        thread.start()
+
     def calc_num_pods(
         self
     ) -> int:
@@ -54,8 +57,10 @@ class PodManager:
                             pod.state == PodState.Starting or \
                             pod.state == PodState.Free or \
                             pod.init:
+                            pod.destroy()
                             self.pods.remove(pod)
-                            continue
+                            if num_pods >= len(self.pods):
+                                break
 
                 for pod in self.pods:
                     if pod.state == PodState.Processing:
@@ -68,7 +73,7 @@ class PodManager:
                             self.failed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
                             self.processing_prompts.pop(pod.current_prompt.prompt_id)
                         pod.state = PodState.Free
-                        
+
                     if pod.state == PodState.Free:
                         if self.queued_prompts.empty():
                             break

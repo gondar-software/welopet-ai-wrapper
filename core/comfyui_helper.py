@@ -1,6 +1,6 @@
 import json
-import urllib
 import time
+from urllib import request, parse
 
 from .enums import *
 from .types import *
@@ -18,7 +18,10 @@ class ComfyUIHelper:
         self, 
         prompt: Prompt
     ) -> str:
-        workflow = self.apply_input(workflow, input_url)
+        with open(f"./workflows/{prompt.workflow_type.value}.json", 'r', encoding='utf-8') as file:
+            workflow = json.load(file)
+        workflow = self.apply_input(workflow, prompt.input_url)
+
         queued_workflow = queued_workflow(workflow)
         prompt_id = queued_workflow.get("prompt_id", "")
 
@@ -35,12 +38,28 @@ class ComfyUIHelper:
                 time.sleep(SERVER_CHECK_DELAY / 1000)
                 retries += 1
         else:
-            raise Exception("Max retries reached while waiting for image generation")
+            raise Exception("Max retries reached while waiting for generation")
+        
+        history = history[prompt_id]
+        for node_id in history['outputs']:
+            node_output = history['outputs'][node_id]
+            if 'images' in node_output:
+                for image in node_output['images']:
+                    output = self.get_data(image['filename'], image['subfolder'], image['type'])
+            elif 'gifs' in node_output:
+                for video in node_output['gifs']:
+                    output = self.get_data(video['filename'], video['subfolder'], video['type'])
 
-    
+        print(output)
+
+    def get_data(self, filename, subfolder, folder_type):
+        data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+        url_values = parse.urlencode(data)
+        with request.urlopen("http://{}/view?{}".format(self.url, url_values)) as response:
+            return response.read()
 
     def get_history(self, prompt_id):
-        with urllib.request.urlopen(f"{self.url}/{prompt_id}") as response:
+        with request.urlopen(f"{self.url}/{prompt_id}") as response:
             return json.loads(response.read())
 
     def apply_input(
@@ -56,6 +75,6 @@ class ComfyUIHelper:
         workflow: dict
     ) -> dict:
         data = json.dumps({"prompt": workflow}).encode("utf-8")
-        req = urllib.request.Request(f"{self.url}/prompt", data=data)
+        req = request.Request(f"{self.url}/prompt", data=data)
 
-        return json.loads(urllib.request.urlopen(req).read())
+        return json.loads(request.urlopen(req).read())

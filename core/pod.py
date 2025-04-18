@@ -80,4 +80,9 @@ class Pod:
                 str(e)
             )
         self.state = PodState.Completed
+
+    def destroy(
+        self
+    ):
+        delete_pod(self.pod_id)
         
