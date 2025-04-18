@@ -1,8 +1,10 @@
-from .core.pod_helper import *
+import os
 
-if __name__ == "__main__":
-    pod_id = create_pod_with_network_volume("0mdsp6d0ht", "test1")
-    print(pod_id)
-    pod_info = get_pod_info(pod_id)
-    print(pod_info)
-    run_comfyui_server(pod_id, pod_info.public_ip, pod_info.port_mappings)
+from .core.pod_manager import *
+
+manager1 = PodManager(
+    os.getenv('VOLUME_ID1', ""),
+    GPUType.RTXA6000,
+    WorkflowType.Ghibli
+)
+

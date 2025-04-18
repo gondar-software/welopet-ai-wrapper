@@ -29,8 +29,10 @@ class PodManager:
         self.prompts_histories = deque([0, 0, 0, 0], maxlen=4)
         self.weights = [0.1, 0.2, 0.3, 0.4]
 
-        thread = Thread(target=self.process)
-        thread.start()
+        process_thread = Thread(target=self.process)
+        process_thread.start()
+        manage_thread = Thread(target=self.manage_pods)
+        manage_thread.start()
 
     def calc_num_pods(
         self
