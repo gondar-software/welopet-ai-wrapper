@@ -88,7 +88,6 @@ def command_to_pod(
     subprocess.run(command, shell=True, capture_output=True, text=True)
     
 def run_comfyui_server(
-    pod_id: str, 
     public_ip: str, 
     port_mappings: dict
 ):
@@ -100,19 +99,23 @@ def run_comfyui_server(
         f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-auto-launch --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
     )
     command_to_pod(command, public_ip, port_mappings)
-    check_comfyui_server_started(pod_id)
+    check_comfyui_server_started(public_ip, port_mappings)
     pass
     
 def check_comfyui_server_started(
-    pod_id, 
+    public_ip,
+    port_mappings, 
     retries=SERVER_CHECK_RETRIES, 
     delay=SERVER_CHECK_DELAY
 ):
-    url = f"https://{pod_id}-8188.proxy.runpod.net/"
+    url = f"http://{public_ip}:{port_mappings.get('8188', 8188)}"
     for _ in range(retries):
-        response = requests.get(url)
+        try:
+            response = requests.get(url)
 
-        if response.status_code == 200:
+            if response.status_code == 200:
+                return
+        except:
             pass
 
         time.sleep(delay / 1000)

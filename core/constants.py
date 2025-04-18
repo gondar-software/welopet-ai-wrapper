@@ -10,7 +10,7 @@ BASE_ENV_VARIABLES = {
 }
 BASE_GPU_COUNT = 1
 BASE_PORTS = [
-    "8188/http", # ComfyUI external port
+    "8188/tcp", # ComfyUI external port
     "8888/http", # JupyterLab port
     "22/tcp"     # ssh access port
 ]

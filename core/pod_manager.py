@@ -39,7 +39,7 @@ class PodManager:
     ) -> int:
         num_prompts = self.queued_prompts.qsize() + len(self.processing_prompts)
         self.prompts_histories.append(num_prompts)
-        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.gpu_type.value]))
+        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.workflow_type.value]))
 
     def manage_pods(
         self
@@ -47,14 +47,20 @@ class PodManager:
         while True:
             with self.lock:
                 num_pods = self.calc_num_pods()
+
+                for pod in self.pods:
+                    if pod.state == PodState.Terminated:
+                        pod.destroy()
+                        self.pods.remove(pod)
+                        continue
+
                 if num_pods > len(self.pods):
                     number = num_pods - len(self.pods)
                     for _ in range(number):
                         self.pods.append(Pod(
                             self.volume_id,
                             self.gpu_type,
-                            self.workflow_type,
-                            self
+                            self.workflow_type
                         ))
                 elif num_pods < len(self.pods):
                     for pod in self.pods:
@@ -65,6 +71,7 @@ class PodManager:
                             self.pods.remove(pod)
                             if num_pods >= len(self.pods):
                                 break
+
             time.sleep(2)
 
     def process(

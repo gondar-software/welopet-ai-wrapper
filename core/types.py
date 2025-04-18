@@ -1,3 +1,5 @@
+import uuid
+
 from .enums import *
 from .constants import *
 
@@ -15,7 +17,7 @@ class PromptResult:
         self,
         prompt_id: str,
         output_state: OutputState,
-        output: str
+        output
     ):
         self.prompt_id = prompt_id
         self.output_state = output_state
@@ -37,6 +39,7 @@ class Prompt:
         workflow_type: WorkflowType
     ):
         return Prompt(
+            str(uuid.uuid4()),
             workflow_type,
             ORIGIN_IMAGE_URL
         )

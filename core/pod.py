@@ -39,7 +39,6 @@ class Pod:
 
             self.state = PodState.Starting
             run_comfyui_server(
-                self.pod_id,
                 self.pod_info.public_ip,
                 self.pod_info.port_mappings
             )
@@ -51,10 +50,7 @@ class Pod:
             self.init = False
         except Exception as e:
             print(f"Error initializing pod: {str(e)}")
-            try:
-                delete_pod(self.pod_id)
-            except:
-                pass
+            self.state = PodState.Terminated
 
     def queue_prompt(
         self, 
@@ -65,20 +61,33 @@ class Pod:
 
         self.current_prompt = prompt
         self.state = PodState.Processing
-        comfyui_helper = ComfyUIHelper(f"https://{self.pod_id}-8188.proxy.runpod.net")
+        comfyui_helper = ComfyUIHelper(
+            f"http://{self.pod_info.public_ip}:{self.pod_info.port_mappings.get('8188', 8188)}",
+            f"ws://{self.pod_info.public_ip}:{self.pod_info.port_mappings.get('8188', 8188)}"
+        )
         try:
             result = comfyui_helper.prompt(prompt)
-            self.current_prompt.result = PromptResult(
-                self.current_prompt.prompt_id,
-                OutputState.Completed,
-                result
-            )
+            if self.init:
+                self.state = PodState.Free
+                return
+            else:
+                self.current_prompt.result = PromptResult(
+                    self.current_prompt.prompt_id,
+                    OutputState.Completed,
+                    result
+                )
         except Exception as e:
-            self.current_prompt.result = PromptResult(
-                self.current_prompt.prompt_id,
-                OutputState.Failed,
-                str(e)
-            )
+            print(str(e))
+            if self.init:
+                self.state = PodState.Terminated
+                return
+            else:
+                self.current_prompt.result = PromptResult(
+                    self.current_prompt.prompt_id,
+                    OutputState.Failed,
+                    str(e)
+                )
+
         self.state = PodState.Completed
 
     def destroy(

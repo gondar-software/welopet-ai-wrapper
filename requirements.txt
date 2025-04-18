@@ -4,3 +4,5 @@ runpod
 python-dotenv
 asyncio
 aiohttp
+websocket_client
+pillow
