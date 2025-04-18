@@ -1,8 +1,10 @@
 import json
 import urllib
+import time
 
 from .enums import *
 from .types import *
+from .constants import *
 
 class ComfyUIHelper:
     def __init__(
@@ -12,19 +14,36 @@ class ComfyUIHelper:
     ):
         self.url = server_url
         self.type = workflow_type
-        self.prompt_id = ""
         self.progress = 0
 
     def prompt(
         self, 
-        workflow: dict, 
-        input_url: str
+        prompt: Prompt
     ) -> str:
         workflow = self.apply_input(workflow, input_url)
         queued_workflow = queued_workflow(workflow)
-        self.prompt_id = queued_workflow.get("prompt_id", "")
+        prompt_id = queued_workflow.get("prompt_id", "")
 
-        return self.prompt_id
+        retries = 0
+        while retries < SERVER_CHECK_RETRIES:
+            history = self.get_history(prompt_id)
+
+            if prompt_id in history:
+                if history[prompt_id].get("outputs"):
+                    break
+                else:
+                    raise Exception("Excusion failed")
+            else:
+                time.sleep(SERVER_CHECK_DELAY / 1000)
+                retries += 1
+        else:
+            raise Exception("Max retries reached while waiting for image generation")
+
+    
+
+    def get_history(self, prompt_id):
+        with urllib.request.urlopen(f"{self.url}/{prompt_id}") as response:
+            return json.loads(response.read())
 
     def apply_input(
         self, 

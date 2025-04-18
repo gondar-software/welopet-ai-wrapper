@@ -9,8 +9,14 @@ class PodState(Enum):
     Starting = 1
     Free = 2
     Processing = 3
+    Completed = 4
+    Failed = 5
 
 class WorkflowType(Enum):
     Ghibli = 0
     Snoopy = 1
     MagicVideo = 2
+
+class OutputState(Enum):
+    Completed = 2
+    Failed = 3
