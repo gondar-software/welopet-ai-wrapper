@@ -3,6 +3,7 @@ import time
 import uuid
 from queue import Queue
 from threading import Thread
+from collections import deque
 
 from .constants import *
 from .pod import *
@@ -25,6 +26,8 @@ class PodManager:
         self.completed_prompts = dict[str, Prompt]()
         self.failed_prompts = dict[str, Prompt]()
         self.lock = threading.Lock()
+        self.prompts_histories = deque([0, 0, 0, 0], maxlen=4)
+        self.weights = [0.1, 0.2, 0.3, 0.4]
 
         thread = Thread(target=self.process)
         thread.start()
@@ -33,10 +36,10 @@ class PodManager:
         self
     ) -> int:
         num_prompts = self.queued_prompts.qsize() + len(self.processing_prompts)
-        num_pods = num_prompts + max(MIN_EXTRA_POS[self.gpu_type.value], num_prompts * EXTRA_POD_RATE)
-        return round(num_pods)
+        self.prompts_histories.append(num_prompts)
+        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.gpu_type.value]))
 
-    def process(
+    def manage_pods(
         self
     ):
         while True:
@@ -53,15 +56,20 @@ class PodManager:
                         ))
                 elif num_pods < len(self.pods):
                     for pod in self.pods:
-                        if pod.state == PodState.Initializing or \
-                            pod.state == PodState.Starting or \
+                        if pod.state == PodState.Starting or \
                             pod.state == PodState.Free or \
-                            pod.init:
+                            (pod.init and pod.state == PodState.Processing):
                             pod.destroy()
                             self.pods.remove(pod)
                             if num_pods >= len(self.pods):
                                 break
+            time.sleep(2)
 
+    def process(
+        self
+    ):
+        while True:
+            with self.lock:
                 for pod in self.pods:
                     if pod.state == PodState.Processing:
                         continue

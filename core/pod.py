@@ -84,5 +84,8 @@ class Pod:
     def destroy(
         self
     ):
-        delete_pod(self.pod_id)
+        try:
+            delete_pod(self.pod_id)
+        except:
+            pass
         
