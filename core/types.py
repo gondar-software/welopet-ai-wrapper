@@ -24,12 +24,14 @@ class PromptResult:
 class Prompt:
     def __init__(
         self,
+        prompt_id: str,
         workflow_type: WorkflowType,
         input_url: str
     ):
+        self.prompt_id = prompt_id
         self.workflow_type = workflow_type
         self.input_url = input_url
-        self.result = None
+        self.result: PromptResult = None
 
     def get_base_prompt(
         workflow_type: WorkflowType

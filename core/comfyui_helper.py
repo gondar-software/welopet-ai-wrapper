@@ -10,10 +10,8 @@ class ComfyUIHelper:
     def __init__(
         self, 
         server_url: str, 
-        workflow_type: WorkflowType
     ):
         self.url = server_url
-        self.type = workflow_type
         self.progress = 0
 
     def prompt(

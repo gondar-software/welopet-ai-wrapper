@@ -10,7 +10,6 @@ class PodState(Enum):
     Free = 2
     Processing = 3
     Completed = 4
-    Failed = 5
 
 class WorkflowType(Enum):
     Ghibli = 0

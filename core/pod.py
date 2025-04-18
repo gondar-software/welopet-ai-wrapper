@@ -4,7 +4,6 @@ import threading
 from .enums import *
 from .pod_helper import *
 from .comfyui_helper import *
-from .pod_manager import *
 
 class Pod:
     def __init__(
@@ -20,7 +19,7 @@ class Pod:
         self.pod_id = ""
         self.pod_info = None
         self.state = PodState.Initializing
-        self.cached_prompt_output = ""
+        self.current_prompt = None
         thread = threading.Thread(target=self.initialize)
         thread.start()
         
@@ -45,6 +44,10 @@ class Pod:
                 self.pod_info.port_mappings
             )
 
+            self.state = PodState.Processing
+            self.queue_prompt(Prompt.get_base_prompt(self.workflow_type))
+
+            self.state = PodState.Free
             self.init = False
         except Exception as e:
             print(f"Error initializing pod: {str(e)}")
@@ -56,19 +59,25 @@ class Pod:
     def queue_prompt(
         self, 
         prompt: Prompt,
-    ) -> PodState | str:
+    ):
         if self.state != PodState.Free and not self.init:
             return self.state
-        
+
+        self.current_prompt = prompt
+        self.state = PodState.Processing
+        comfyui_helper = ComfyUIHelper(f"https://{self.pod_id}-8188.proxy.runpod.net")
         try:
-            self.state = PodState.Processing
-            comfyui_helper = ComfyUIHelper(
-                f"https://{self.pod_id}-8188.proxy.runpod.net",
-                self.workflow_type
+            result = comfyui_helper.prompt(prompt)
+            self.current_prompt.result = PromptResult(
+                self.current_prompt.prompt_id,
+                OutputState.Completed,
+                result
             )
-            self.prompt_id = comfyui_helper.prompt(prompt)
         except Exception as e:
-            print(f"Error queueing prompt: {str(e)}")
-            self.state = PodState.Free
-            return self.state
+            self.current_prompt.result = PromptResult(
+                self.current_prompt.prompt_id,
+                OutputState.Failed,
+                str(e)
+            )
+        self.state = PodState.Completed
         
