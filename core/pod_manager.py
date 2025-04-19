@@ -38,18 +38,19 @@ class PodManager:
     def get_state(
         self
     ):
-        total_pod_num = len(self.pods)
-        initializing_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Initializing)
-        starting_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Starting)
-        free_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Free)
-        processing_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Processing)
-        completed_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Completed)
-        terminated_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Terminated)
+        with self.lock:
+            total_pod_num = len(self.pods)
+            initializing_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Initializing)
+            starting_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Starting)
+            free_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Free)
+            processing_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Processing)
+            completed_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Completed)
+            terminated_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Terminated)
 
-        queued_prompt_num = self.queued_prompts.qsize()
-        processing_prompt_num = len(self.processing_prompts)
-        completed_prompt_num = len(self.completed_prompts)
-        failed_prompt_num = len(self.failed_prompts)
+            queued_prompt_num = self.queued_prompts.qsize()
+            processing_prompt_num = len(self.processing_prompts)
+            completed_prompt_num = len(self.completed_prompts)
+            failed_prompt_num = len(self.failed_prompts)
 
         return {
             "state": self.state,
@@ -131,7 +132,7 @@ class PodManager:
                                 break
                             prompt = self.queued_prompts.get()
                             self.processing_prompts[prompt.prompt_id] = prompt
-                            thread = Thread(target=pod.queue_prompt, args=(prompt))
+                            thread = Thread(target=pod.queue_prompt, args=[prompt])
                             thread.start()
 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
@@ -149,7 +150,8 @@ class PodManager:
             workflow_type,
             input_url
         )
-        self.queued_prompts.put(prompt)
+        with self.lock:
+            self.queued_prompts.put(prompt)
 
         while True:
             with self.lock:
@@ -180,7 +182,8 @@ class PodManager:
                     self.completed_prompts = dict[str, Prompt]()
                     self.failed_prompts = dict[str, Prompt]()
                     self.state = PodManagerState.Stopped
-        except:
+        except Exception as e:
+            print(e)
             pass
 
     def restart(

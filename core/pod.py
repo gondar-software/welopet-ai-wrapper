@@ -4,6 +4,7 @@ import threading
 from .enums import *
 from .pod_helper import *
 from .comfyui_helper import *
+from .utils import *
 
 class Pod:
     def __init__(
@@ -19,8 +20,8 @@ class Pod:
         self.pod_info = None
         self.state = PodState.Initializing
         self.current_prompt = None
-        thread = threading.Thread(target=self.initialize)
-        thread.start()
+        self.init_thread = threading.Thread(target=self.initialize)
+        self.init_thread.start()
         
     def initialize(
         self
@@ -95,6 +96,8 @@ class Pod:
     ):
         try:
             delete_pod(self.pod_id)
+            if self.init_thread:
+                terminate_thread(self.init_thread)
         except:
             pass
         

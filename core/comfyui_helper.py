@@ -1,5 +1,4 @@
 import json
-import time
 import websocket
 from urllib import request, parse
 from PIL import Image
