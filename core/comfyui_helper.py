@@ -28,9 +28,7 @@ class ComfyUIHelper:
         workflow = self.apply_input(workflow, prompt.input_url)
 
         ws, client_id = self.open_websocket_connection()
-        print(client_id)
         queued_workflow = self.queue_workflow(workflow, client_id)
-        print(queued_workflow)
         prompt_id = queued_workflow.get("prompt_id", "")
 
         self.track_progress(ws, prompt_id)
@@ -41,14 +39,15 @@ class ComfyUIHelper:
             if 'images' in node_output:
                 for image in node_output['images']:
                     output = self.get_data(image['filename'], image['subfolder'], image['type'])
-                    with Image.open(output) as img:
+                    png_buffer = BytesIO(output)
+                    with Image.open(png_buffer) as img:
                         if img.mode in ('RGBA', 'LA'):
                             img = img.convert('RGB')
                         
                         jpg_buffer = BytesIO()
                         img.save(jpg_buffer, format='JPEG', quality=85)
 
-                    return jpg_buffer.getvalue()
+                        return jpg_buffer.getvalue()
             elif 'gifs' in node_output:
                 for video in node_output['gifs']:
                     return self.get_data(video['filename'], video['subfolder'], video['type'])

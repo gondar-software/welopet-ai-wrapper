@@ -20,3 +20,7 @@ class WorkflowType(Enum):
 class OutputState(Enum):
     Completed = 2
     Failed = 3
+
+class PodManagerState(Enum):
+    Running = 0
+    Stopped = 1

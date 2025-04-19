@@ -8,11 +8,10 @@ from .comfyui_helper import *
 class Pod:
     def __init__(
         self, 
-        volume_id: str, 
         gpu_type: GPUType, 
         workflow_type: WorkflowType
     ):
-        self.volume_id = volume_id
+        self.volume_id = os.getenv(f"VOLUME_ID{workflow_type.value}", "")
         self.gpu_type = gpu_type
         self.workflow_type = workflow_type
         self.init = True
@@ -67,6 +66,7 @@ class Pod:
         )
         try:
             result = comfyui_helper.prompt(prompt)
+
             if self.init:
                 self.state = PodState.Free
                 return
