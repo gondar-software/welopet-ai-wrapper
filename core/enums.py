@@ -1,7 +1,7 @@
 from enum import Enum
 
 class GPUType(Enum):
-    RTX4090 = "NVIDIA RTX 4090"
+    RTX4090 = "NVIDIA GeForce RTX 4090"
     RTXA6000 = "NVIDIA RTX A6000"
 
 class PodState(Enum):
@@ -13,9 +13,10 @@ class PodState(Enum):
     Terminated = 5
 
 class WorkflowType(Enum):
-    Ghibli = 0
-    Snoopy = 1
-    MagicVideo = 2
+    Ghibli = 1
+    Snoopy = 2
+    MagicVideo = 3
+    _3DCartoon = 4
 
 class OutputState(Enum):
     Completed = 2

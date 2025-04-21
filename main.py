@@ -83,11 +83,11 @@ async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
 #                     detail="No available workers at this time"
 #                 )
             
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error checking worker availability: {str(e)}"
-#         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error checking worker availability: {str(e)}"
+        )
     
 @app.post('/api/prompt')
 async def prompt(query: dict):

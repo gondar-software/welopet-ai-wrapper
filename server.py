@@ -4,16 +4,43 @@ from contextlib import asynccontextmanager
 
 from core.pod_manager import *
 
-easycontrol_manager = None
+_3d_cartoon_manager = None
+# magicvideo_manager = None
 logging_thread = None
+
+def log_state():
+    while True:
+        if _3d_cartoon_manager:
+            _3d_cartoon_state = _3d_cartoon_manager.get_state()
+            print(f"{_3d_cartoon_state["state"].name}  \
+  {_3d_cartoon_state["total_pod_num"]}  \
+  {_3d_cartoon_state["initializing_pod_num"]}  \
+  {_3d_cartoon_state["starting_pod_num"]}  \
+  {_3d_cartoon_state["free_pod_num"]}  \
+  {_3d_cartoon_state["processing_pod_num"]}  \
+  {_3d_cartoon_state["completed_pod_num"]}  \
+  {_3d_cartoon_state["terminated_pod_num"]}  \
+  {_3d_cartoon_state["queued_prompt_num"]}  \
+  {_3d_cartoon_state["processing_prompt_num"]}  \
+  {_3d_cartoon_state["completed_prompt_num"]}  \
+  {_3d_cartoon_state["failed_prompt_num"]}", end="\r")
+            time.sleep(3)
+
+def start_logging_thread():
+    from threading import Thread
+    
+    global logging_thread
+
+    logging_thread = Thread(target=log_state)
+    logging_thread.start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global easycontrol_manager, logging_thread
+    global _3d_cartoon_manager, logging_thread
     
-    easycontrol_manager = PodManager(
+    _3d_cartoon_manager = PodManager(
         GPUType.RTXA6000,
-        WorkflowType.Ghibli
+        WorkflowType._3DCartoon
     )
     
     logging_thread = Thread(target=log_state, daemon=True)
@@ -21,8 +48,8 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    if easycontrol_manager:
-        easycontrol_manager.stop()
+    if _3d_cartoon_manager:
+        _3d_cartoon_manager.stop()
     if logging_thread:
         terminate_thread(logging_thread)
 
@@ -36,36 +63,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def log_state():
-    while True:
-        if easycontrol_manager:
-            state = easycontrol_manager.get_state()
-            print(f"{state["state"].name}  \
-        {state["total_pod_num"]}  \
-        {state["initializing_pod_num"]}  \
-        {state["starting_pod_num"]}  \
-        {state["free_pod_num"]}  \
-        {state["processing_pod_num"]}  \
-        {state["completed_pod_num"]}  \
-        {state["terminated_pod_num"]}  \
-        {state["queued_prompt_num"]}  \
-        {state["processing_prompt_num"]}  \
-        {state["completed_prompt_num"]}  \
-        {state["failed_prompt_num"]}", end="\r")
-            time.sleep(3)
-
-@app.post('/api2/v2/prompt')
+@app.post('/api/v2/prompt')
 def prompt(query: dict):
     try:
         url = query.get("url", ORIGIN_IMAGE_URL)
-        result = easycontrol_manager.queue_prompt(
-            WorkflowType.Ghibli,
-            url
-        )
-        return Response(
-            content=result.output,
-            media_type=f"image/jpeg"
-        )
+        workflow_id = query.get("workflow_id", 0)
+        if workflow_id == 1 or \
+            workflow_id == 2 or \
+            workflow_id == 4:
+            result = _3d_cartoon_manager.queue_prompt(
+                WorkflowType(workflow_id),
+                url
+            )
+            if result.output_state == OutputState.Completed:
+                return Response(
+                    content=result.output,
+                    media_type=f"image/jpeg"
+                )
+            else: 
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error during job execution: {result.output}"
+                )
+        else:
+            # result = magicvideo_manager.queue_prompt(
+            #     WorkflowType(workflow_id),
+            #     url
+            # )
+            # return Response(
+            #     content=result.output,
+            #     media_type=f"video/mp4"
+            # )
+            return
 
     except Exception as e:  
         raise HTTPException(
@@ -73,33 +102,20 @@ def prompt(query: dict):
             detail=f"Error during job execution: {str(e)}"
         )
 
-@app.post('/api2/v2/stop')
+@app.post('/api/v2/stop')
 def stop():
-    try:
-        if easycontrol_manager:
-            easycontrol_manager.stop()
-        return {"message": "OK"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error stopping server: {str(e)}"
-        )
+    if _3d_cartoon_manager:
+        _3d_cartoon_manager.stop()
+    if logging_thread:
+        terminate_thread(logging_thread)
 
-@app.post('/api2/v2/restart')
+@app.post('/api/v2/restart')
 def restart():
-    try:
-        if easycontrol_manager:
-            easycontrol_manager.restart()
-        return {"message": "OK"}
-    except Exception as e:
-        raise HTTPException
-
-def start_logging_thread():
-    from threading import Thread
-    
-    global logging_thread
-
-    logging_thread = Thread(target=log_state)
+    if _3d_cartoon_manager:
+        _3d_cartoon_manager.stop()
+    if logging_thread:
+        terminate_thread(logging_thread)
+    logging_thread = Thread(target=log_state, daemon=True)
     logging_thread.start()
     
 if __name__ == "__main__":

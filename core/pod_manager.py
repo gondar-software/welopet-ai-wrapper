@@ -72,7 +72,7 @@ class PodManager:
     ) -> int:
         num_prompts = self.queued_prompts.qsize() + len(self.processing_prompts)
         self.prompts_histories.append(num_prompts)
-        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.workflow_type.value]))
+        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.workflow_type.value - 1]))
 
     def manage_pods(
         self
@@ -96,14 +96,17 @@ class PodManager:
                                 self.workflow_type
                             ))
                     elif num_pods < len(self.pods):
-                        for pod in self.pods:
-                            if pod.state == PodState.Starting or \
+                        if len(self.pods) > 0:
+                            pod = self.pods[-1]
+                            if pod and (pod.state == PodState.Starting or \
                                 pod.state == PodState.Free or \
-                                (pod.init and pod.state == PodState.Processing):
+                                (pod.init and pod.state == PodState.Processing)):
                                 pod.destroy()
                                 self.pods.remove(pod)
-                                if num_pods >= len(self.pods):
-                                    break
+                            if num_pods >= len(self.pods):
+                                break
+                        else:
+                            break
 
                 time.sleep(2)
         except:
@@ -155,14 +158,17 @@ class PodManager:
 
         while True:
             with self.lock:
-                prompt = self.completed_prompts.get(
+                prompt = self.completed_prompts.pop(
                     prompt_id,
-                    self.failed_prompts.get(
+                    self.failed_prompts.pop(
                         prompt_id,
                         None
                     )
                 )
+                
                 if prompt is not None:
+                    if prompt.result.output_state == OutputState.Failed:
+                        return prompt.result
                     return prompt.result
             time.sleep(SERVER_CHECK_DELAY / 1000)
 
