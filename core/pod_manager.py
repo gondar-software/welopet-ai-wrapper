@@ -131,10 +131,11 @@ class PodManager:
                                 thread.start()
                                 pod.count = 0
 
-                            if ((pod.state == PodState.Free or pod.state == PodState.Completed) and pod.count > FREE_MAX_REMAINS and self.num_pods < len(self.pods)) or \
+                            if (pod.state == PodState.Free and self.num_pods < len(self.pods)) or \
                                 (pod.state == PodState.Processing and ((pod.init and pod.count > SERVER_CHECK_DELAY) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
                                 (pod.state == PodState.Starting and pod.count > SERVER_CHECK_DELAY) or \
-                                (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES):
+                                (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES) or \
+                                (pod.state == PodState.Completed and pod.count > FREE_MAX_REMAINS):
                                 pod.state = PodState.Terminated
                     except:
                         pass

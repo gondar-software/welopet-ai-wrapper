@@ -51,7 +51,6 @@ class Pod:
             self.state = PodState.Free
             self.init = False
         except Exception as e:
-            print(f"Error initializing pod: {str(e)}")
             self.state = PodState.Terminated
 
     def queue_prompt(
@@ -81,7 +80,6 @@ class Pod:
                     result
                 )
         except Exception as e:
-            print(str(e))
             if self.init:
                 self.state = PodState.Terminated
                 return
