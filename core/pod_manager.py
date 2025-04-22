@@ -27,6 +27,7 @@ class PodManager:
         self.lock = threading.Lock()
         self.prompts_histories = deque([0, 0, 0, 0], maxlen=4)
         self.weights = [0.1, 0.2, 0.3, 0.4]
+        self.num_pods = 0
 
         self.process_thread = Thread(target=self.process)
         self.process_thread.start()
@@ -80,7 +81,7 @@ class PodManager:
         try:
             while True:
                 with self.lock:
-                    num_pods = self.calc_num_pods()
+                    self.num_pods = self.calc_num_pods()
 
                     for pod in self.pods:
                         if pod.state == PodState.Terminated:
@@ -88,25 +89,13 @@ class PodManager:
                             self.pods.remove(pod)
                             continue
 
-                    if num_pods > len(self.pods):
-                        number = num_pods - len(self.pods)
+                    if self.num_pods > len(self.pods):
+                        number = self.num_pods - len(self.pods)
                         for _ in range(number):
                             self.pods.append(Pod(
                                 self.gpu_type,
                                 self.volume_type
                             ))
-                    elif num_pods < len(self.pods):
-                        if len(self.pods) > 0:
-                            pod = self.pods[-1]
-                            if pod and (pod.state == PodState.Starting or \
-                                pod.state == PodState.Free or \
-                                (pod.init and pod.state == PodState.Processing)):
-                                pod.destroy()
-                                self.pods.remove(pod)
-                            if num_pods >= len(self.pods):
-                                break
-                        else:
-                            break
 
                 time.sleep(2)
         except:
@@ -118,25 +107,37 @@ class PodManager:
         try:
             while True:
                 with self.lock:
-                    for pod in self.pods:
-                        if pod.state == PodState.Processing:
-                            continue
-                        elif pod.state == PodState.Completed:
-                            if pod.current_prompt.result.output_state == OutputState.Completed:
-                                self.completed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
-                                self.processing_prompts.pop(pod.current_prompt.prompt_id)
-                            else:
-                                self.failed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
-                                self.processing_prompts.pop(pod.current_prompt.prompt_id)
-                            pod.state = PodState.Free
+                    try:
+                        for pod in self.pods:
+                            pod.count += 1
+                            if pod.state == PodState.Processing:
+                                continue
+                            elif pod.state == PodState.Completed:
+                                if pod.current_prompt.result.output_state == OutputState.Completed:
+                                    self.completed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
+                                    self.processing_prompts.pop(pod.current_prompt.prompt_id)
+                                else:
+                                    self.failed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
+                                    self.processing_prompts.pop(pod.current_prompt.prompt_id)
+                                pod.state = PodState.Free
+                                pod.count = 0
 
-                        if pod.state == PodState.Free:
-                            if self.queued_prompts.empty():
-                                break
-                            prompt = self.queued_prompts.get()
-                            self.processing_prompts[prompt.prompt_id] = prompt
-                            thread = Thread(target=pod.queue_prompt, args=[prompt])
-                            thread.start()
+                            if pod.state == PodState.Free:
+                                if self.queued_prompts.empty():
+                                    break
+                                prompt = self.queued_prompts.get()
+                                self.processing_prompts[prompt.prompt_id] = prompt
+                                thread = Thread(target=pod.queue_prompt, args=[prompt])
+                                thread.start()
+                                pod.count = 0
+
+                            if ((pod.state == PodState.Free or pod.state == PodState.Completed) and pod.count > FREE_MAX_REMAINS and self.num_pods < len(self.pods)) or \
+                                (pod.state == PodState.Processing and ((pod.init and pod.count > SERVER_CHECK_DELAY) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
+                                (pod.state == PodState.Starting and pod.count > SERVER_CHECK_DELAY) or \
+                                (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES):
+                                pod.state = PodState.Terminated
+                    except:
+                        pass
 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
         except:
@@ -156,8 +157,11 @@ class PodManager:
         with self.lock:
             self.queued_prompts.put(prompt)
 
-        while True:
+        processing_count = 0
+
+        while processing_count < SERVER_CHECK_RETRIES:
             with self.lock:
+                processing_count = processing_count + 1
                 prompt = self.completed_prompts.pop(
                     prompt_id,
                     self.failed_prompts.pop(
@@ -171,6 +175,13 @@ class PodManager:
                         return prompt.result
                     return prompt.result
             time.sleep(SERVER_CHECK_DELAY / 1000)
+        
+        else:
+            return PromptResult(
+                prompt_id,
+                OutputState.Failed,
+                "Time out error"
+            )
 
     def stop(
         self

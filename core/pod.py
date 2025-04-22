@@ -23,13 +23,13 @@ class Pod:
         self.current_prompt = None
         self.init_thread = threading.Thread(target=self.initialize)
         self.init_thread.start()
+        self.count = 0
         
     def initialize(
         self
     ):
         try:
             self.state = PodState.Initializing
-            print(self.volume_id)
             self.pod_id = create_pod_with_network_volume(
                 self.volume_id,
                 f"pod-{self.volume_type.name}-{uuid.uuid4()}",
@@ -69,6 +69,7 @@ class Pod:
         )
         try:
             result = comfyui_helper.prompt(prompt)
+            self.count = 0
 
             if self.init:
                 self.state = PodState.Free
@@ -92,6 +93,7 @@ class Pod:
                 )
 
         self.state = PodState.Completed
+        self.count = 0
 
     def destroy(
         self

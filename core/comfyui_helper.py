@@ -28,11 +28,17 @@ class ComfyUIHelper:
 
         ws, client_id = self.open_websocket_connection()
         queued_workflow = self.queue_workflow(workflow, client_id)
+        # queued_workflow = self.queue_workflow(workflow)
         prompt_id = queued_workflow.get("prompt_id", "")
 
         self.track_progress(ws, prompt_id)
         
         history = self.get_history(prompt_id)[prompt_id]
+        # retries = 0
+        # while retries < SERVER_CHECK_DELAY:
+        # retries += 1
+        history = self.get_history(prompt_id).get(prompt_id, None)
+        # if history:
         for node_id in history['outputs']:
             node_output = history['outputs'][node_id]
             if 'images' in node_output:
@@ -50,6 +56,9 @@ class ComfyUIHelper:
             elif 'gifs' in node_output:
                 for video in node_output['gifs']:
                     return self.get_data(video['filename'], video['subfolder'], video['type'])
+                        
+        # else:
+        #     raise TimeoutError()
 
     def get_data(self, filename, subfolder, folder_type):
         data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
@@ -87,6 +96,12 @@ class ComfyUIHelper:
         req = request.Request(f"{self.url}/prompt", data=data, headers=headers)
 
         return json.loads(request.urlopen(req).read())
+
+        # data = json.dumps({"prompt": workflow}).encode("utf-8")
+        # headers = {'Content-Type': 'application/json'}
+        # req = request.Request(f"{self.url}/prompt", data=data, headers=headers)
+
+        # return json.loads(request.urlopen(req).read())
 
     
     def track_progress(
