@@ -4,26 +4,26 @@ from contextlib import asynccontextmanager
 
 from core.pod_manager import *
 
-_3d_cartoon_manager = None
+easycontrol_manager = None
 # magicvideo_manager = None
 logging_thread = None
 
 def log_state():
     while True:
-        if _3d_cartoon_manager:
-            _3d_cartoon_state = _3d_cartoon_manager.get_state()
-            print(f"{_3d_cartoon_state["state"].name}  \
-  {_3d_cartoon_state["total_pod_num"]}  \
-  {_3d_cartoon_state["initializing_pod_num"]}  \
-  {_3d_cartoon_state["starting_pod_num"]}  \
-  {_3d_cartoon_state["free_pod_num"]}  \
-  {_3d_cartoon_state["processing_pod_num"]}  \
-  {_3d_cartoon_state["completed_pod_num"]}  \
-  {_3d_cartoon_state["terminated_pod_num"]}  \
-  {_3d_cartoon_state["queued_prompt_num"]}  \
-  {_3d_cartoon_state["processing_prompt_num"]}  \
-  {_3d_cartoon_state["completed_prompt_num"]}  \
-  {_3d_cartoon_state["failed_prompt_num"]}", end="\r")
+        if easycontrol_manager:
+            easycontrol_manager_state = easycontrol_manager.get_state()
+            print(f"{easycontrol_manager_state["state"].name}  \
+  {easycontrol_manager_state["total_pod_num"]}  \
+  {easycontrol_manager_state["initializing_pod_num"]}  \
+  {easycontrol_manager_state["starting_pod_num"]}  \
+  {easycontrol_manager_state["free_pod_num"]}  \
+  {easycontrol_manager_state["processing_pod_num"]}  \
+  {easycontrol_manager_state["completed_pod_num"]}  \
+  {easycontrol_manager_state["terminated_pod_num"]}  \
+  {easycontrol_manager_state["queued_prompt_num"]}  \
+  {easycontrol_manager_state["processing_prompt_num"]}  \
+  {easycontrol_manager_state["completed_prompt_num"]}  \
+  {easycontrol_manager_state["failed_prompt_num"]}", end="\r")
             time.sleep(3)
 
 def start_logging_thread():
@@ -36,11 +36,11 @@ def start_logging_thread():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _3d_cartoon_manager, logging_thread
+    global easycontrol_manager, logging_thread
     
-    _3d_cartoon_manager = PodManager(
+    easycontrol_manager = PodManager(
         GPUType.RTXA6000,
-        WorkflowType._3DCartoon
+        VolumeType.EasyControl
     )
     
     logging_thread = Thread(target=log_state, daemon=True)
@@ -48,8 +48,8 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    if _3d_cartoon_manager:
-        _3d_cartoon_manager.stop()
+    if easycontrol_manager:
+        easycontrol_manager.stop()
     if logging_thread:
         terminate_thread(logging_thread)
 
@@ -66,15 +66,17 @@ app.add_middleware(
 @app.post('/api/v2/prompt')
 def prompt(query: dict):
     try:
+        start_time = time.time()
         url = query.get("url", ORIGIN_IMAGE_URL)
         workflow_id = query.get("workflow_id", 0)
         if workflow_id == 1 or \
             workflow_id == 2 or \
             workflow_id == 4:
-            result = _3d_cartoon_manager.queue_prompt(
+            result = easycontrol_manager.queue_prompt(
                 WorkflowType(workflow_id),
                 url
             )
+            print(f"{(time.time() - start_time):.4} seconds are taken to process request")
             if result.output_state == OutputState.Completed:
                 return Response(
                     content=result.output,
@@ -104,15 +106,15 @@ def prompt(query: dict):
 
 @app.post('/api/v2/stop')
 def stop():
-    if _3d_cartoon_manager:
-        _3d_cartoon_manager.stop()
+    if easycontrol_manager:
+        easycontrol_manager.stop()
     if logging_thread:
         terminate_thread(logging_thread)
 
 @app.post('/api/v2/restart')
 def restart():
-    if _3d_cartoon_manager:
-        _3d_cartoon_manager.stop()
+    if easycontrol_manager:
+        easycontrol_manager.stop()
     if logging_thread:
         terminate_thread(logging_thread)
     logging_thread = Thread(target=log_state, daemon=True)

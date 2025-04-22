@@ -36,10 +36,17 @@ class Prompt:
         self.result: PromptResult = None
 
     def get_base_prompt(
-        workflow_type: WorkflowType
+        volume_type: VolumeType
     ):
-        return Prompt(
-            str(uuid.uuid4()),
-            workflow_type,
-            ORIGIN_IMAGE_URL
-        )
+        if volume_type == VolumeType.EasyControl:
+            return Prompt(
+                str(uuid.uuid4()),
+                WorkflowType.Ghibli,
+                ORIGIN_IMAGE_URL
+            )
+        else:
+            return Prompt(
+                str(uuid.uuid4()),
+                WorkflowType.MagicVideo,
+                ORIGIN_IMAGE_URL
+            )

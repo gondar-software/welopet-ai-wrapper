@@ -15,10 +15,10 @@ class PodManager:
     def __init__(
         self, 
         gpu_type: GPUType,
-        workflow_type: WorkflowType
+        volume_type: VolumeType
     ):
         self.gpu_type = gpu_type
-        self.workflow_type = workflow_type
+        self.volume_type = volume_type
         self.pods = list[Pod]()
         self.queued_prompts = Queue[Prompt]()
         self.processing_prompts = dict[str, Prompt]()
@@ -72,7 +72,7 @@ class PodManager:
     ) -> int:
         num_prompts = self.queued_prompts.qsize() + len(self.processing_prompts)
         self.prompts_histories.append(num_prompts)
-        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.workflow_type.value - 1]))
+        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.volume_type.value]))
 
     def manage_pods(
         self
@@ -93,7 +93,7 @@ class PodManager:
                         for _ in range(number):
                             self.pods.append(Pod(
                                 self.gpu_type,
-                                self.workflow_type
+                                self.volume_type
                             ))
                     elif num_pods < len(self.pods):
                         if len(self.pods) > 0:

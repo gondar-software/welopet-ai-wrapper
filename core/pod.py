@@ -5,16 +5,17 @@ from .enums import *
 from .pod_helper import *
 from .comfyui_helper import *
 from .utils import *
+from .constants import *
 
 class Pod:
     def __init__(
         self, 
         gpu_type: GPUType, 
-        workflow_type: WorkflowType
+        volume_type: VolumeType
     ):
-        self.volume_id = os.getenv(f"VOLUME_ID{workflow_type.value}", "")
+        self.volume_id = envs.get(f"VOLUME_ID{volume_type.value}", "")
         self.gpu_type = gpu_type
-        self.workflow_type = workflow_type
+        self.volume_type = volume_type
         self.init = True
         self.pod_id = ""
         self.pod_info = None
@@ -28,9 +29,10 @@ class Pod:
     ):
         try:
             self.state = PodState.Initializing
+            print(self.volume_id)
             self.pod_id = create_pod_with_network_volume(
                 self.volume_id,
-                f"pod-{self.workflow_type.name}-{uuid.uuid4()}",
+                f"pod-{self.volume_type.name}-{uuid.uuid4()}",
                 gpu_type_ids=[
                     self.gpu_type.value
                 ]
@@ -44,7 +46,7 @@ class Pod:
             )
 
             self.state = PodState.Processing
-            self.queue_prompt(Prompt.get_base_prompt(self.workflow_type))
+            self.queue_prompt(Prompt.get_base_prompt(self.volume_type))
 
             self.state = PodState.Free
             self.init = False

@@ -1,7 +1,8 @@
 import os
-from dotenv import load_dotenv
+import json
 
-load_dotenv()
+with open("./env.json", 'r', encoding='utf-8') as file:
+    envs = json.load(file)
 
 BASE_GPU_TYPE_IDS = [
     "NVIDIA RTX A6000"
@@ -14,10 +15,10 @@ BASE_PORTS = [
     "8888/http", # JupyterLab port
     "22/tcp"     # ssh access port
 ]
-RUNPOD_API = os.getenv('RUNPOD_API')
-OUTPUT_DIRECTORY = os.getenv('OUTPUT_DIRECTORY')
-SERVER_CHECK_RETRIES = int(os.getenv('SERVER_CHECK_RETRIES', 1200))
-SERVER_CHECK_DELAY = int(os.getenv('SERVER_CHECK_DELAY', 500))
-MIN_EXTRA_POS = [2, 1, 1, 1]
+RUNPOD_API = envs.get('RUNPOD_API', '')
+OUTPUT_DIRECTORY = envs.get('OUTPUT_DIRECTORY', '')
+SERVER_CHECK_RETRIES = envs.get('SERVER_CHECK_RETRIES', 1200)
+SERVER_CHECK_DELAY = envs.get('SERVER_CHECK_DELAY', 500)
+MIN_EXTRA_POS = [2, 1]
 EXTRA_POD_RATE = 0.0075
-ORIGIN_IMAGE_URL = os.getenv('ORIGIN_IMAGE_URL', "")
+ORIGIN_IMAGE_URL = envs.get('ORIGIN_IMAGE_URL', '')

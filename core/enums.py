@@ -18,6 +18,10 @@ class WorkflowType(Enum):
     MagicVideo = 3
     _3DCartoon = 4
 
+class VolumeType(Enum):
+    EasyControl = 0
+    MagicVideo = 1
+
 class OutputState(Enum):
     Completed = 2
     Failed = 3
