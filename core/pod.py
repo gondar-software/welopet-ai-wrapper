@@ -39,6 +39,7 @@ class Pod:
             )
             self.pod_info = get_pod_info(self.pod_id)
 
+            self.count = 0
             self.state = PodState.Starting
             run_comfyui_server(
                 self.pod_info.public_ip,
@@ -48,6 +49,7 @@ class Pod:
             self.state = PodState.Processing
             self.queue_prompt(Prompt.get_base_prompt(self.volume_type))
 
+            self.count = 0
             self.state = PodState.Free
             self.init = False
         except Exception as e:
@@ -90,8 +92,8 @@ class Pod:
                     str(e)
                 )
 
-        self.state = PodState.Completed
         self.count = 0
+        self.state = PodState.Completed
 
     def destroy(
         self

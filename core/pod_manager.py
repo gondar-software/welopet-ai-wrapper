@@ -110,9 +110,7 @@ class PodManager:
                     try:
                         for pod in self.pods:
                             pod.count += 1
-                            if pod.state == PodState.Processing:
-                                continue
-                            elif pod.state == PodState.Completed:
+                            if pod.state == PodState.Completed:
                                 if pod.current_prompt.result.output_state == OutputState.Completed:
                                     self.completed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
                                     self.processing_prompts.pop(pod.current_prompt.prompt_id)
@@ -132,8 +130,8 @@ class PodManager:
                                 pod.count = 0
 
                             if (pod.state == PodState.Free and self.num_pods < len(self.pods)) or \
-                                (pod.state == PodState.Processing and ((pod.init and pod.count > SERVER_CHECK_DELAY) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
-                                (pod.state == PodState.Starting and pod.count > SERVER_CHECK_DELAY) or \
+                                (pod.state == PodState.Processing and ((pod.init and pod.count > SERVER_CHECK_RETRIES) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
+                                (pod.state == PodState.Starting and pod.count > SERVER_CHECK_RETRIES) or \
                                 (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES) or \
                                 (pod.state == PodState.Completed and pod.count > FREE_MAX_REMAINS):
                                 pod.state = PodState.Terminated

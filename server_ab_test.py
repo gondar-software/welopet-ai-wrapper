@@ -110,7 +110,7 @@ async def prompt(query: dict):
     start_time = time.time()
     global switch_value
     if switch_value:
-        switch_value = not switch_value
+        switch_value = False
         try:
             url = query.get("url", ORIGIN_IMAGE_URL)
             workflow_id = query.get("workflow_id", 0)
@@ -151,7 +151,7 @@ async def prompt(query: dict):
             )
 
     else:
-        switch_value = not switch_value
+        switch_value = True
         try:
             url = query.get("url", ORIGIN_IMAGE_URL)
             workflow_id = query.get("workflow_id", 1)
