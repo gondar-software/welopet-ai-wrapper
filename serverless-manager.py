@@ -11,7 +11,7 @@ RUNPOD_API = os.getenv('RUNPOD_API')
 
 MAX_WORKERS = [0, 0, 20, 0, 200]
 MIN_WORKERS = [0, 0, 1, 0, 2]
-IDLE_TIMEOUTS = [5, 5, 30, 5, 30]
+IDLE_TIMEOUTS = [5, 5, 30, 5, 10]
 NUM_ENDPOINT = 5
 
 runpod.api_key = RUNPOD_API
