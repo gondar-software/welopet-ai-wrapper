@@ -39,13 +39,42 @@ images = {}
 #     AVAILABLE_NORMAL_WORKER = endpoint_health["workers"]["running"] - endpoint_health["jobs"]["inProgress"]
 #     FILLED_NORMAL_PODS = AVAILABLE_NORMAL_WORKER == 0 and endpoint_health["workers"]["running"] == MAX_NORMAL_WORKER
 
-async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
+async def run(url: str = None, workflow_id: int = 1):
     try:
         async with aiohttp.ClientSession() as session:
-            # endpoint = AsyncioEndpoint(NORMAL_ENDPOINT_ID if not urgent else URGENT_ENDPOINT_ID, session)
             endpoint = AsyncioEndpoint(os.getenv(f"ENDPOINT_ID{workflow_id}"), session)
             job: AsyncioJob = await endpoint.run({ 
                 "url": ORIGIN_IMAGE_URL if url is None else url
+            })
+
+            while True:
+                status = await job.status()
+                
+                if status == "COMPLETED":
+                    output = await job.output()
+                    return output
+                
+                elif status in ["FAILED", "CANCELLED"]:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Job failed with status: {status}"
+                    )
+                
+                await asyncio.sleep(3)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+    
+async def run_easycontrol(url: str = None, workflow_id: int = 1):
+    try:
+        async with aiohttp.ClientSession() as session:
+            endpoint = AsyncioEndpoint(os.getenv(f"ENDPOINT_ID5"), session)
+            job: AsyncioJob = await endpoint.run({ 
+                "url": ORIGIN_IMAGE_URL if url is None else url,
+                "workflow_id": workflow_id
             })
 
             while True:
@@ -83,14 +112,14 @@ async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
 #                     detail="No available workers at this time"
 #                 )
             
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error checking worker availability: {str(e)}"
-        )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error checking worker availability: {str(e)}"
+#         )
     
 @app.post('/api/prompt')
-async def prompt(query: dict):
+async def prompt1(query: dict):
     try:
         # isUrgent = query.get("urgent", False)
         url = query.get("url", ORIGIN_IMAGE_URL)
@@ -121,13 +150,34 @@ async def prompt(query: dict):
             detail=f"Error during job execution: {str(e)}"
         )
     
+# @app.post('/api/v2/prompt')
+# async def prompt2(query: dict):
+#     try:
+#         url = query.get("url", ORIGIN_IMAGE_URL)
+#         workflow_id = query.get("workflow_id", 1)
+
+#         output = await run(url, workflow_id=workflow_id)
+
+#         base64_image = output["message"]
+#         decoded_bytes = base64.b64decode(base64_image)
+#         return Response(
+#             content=decoded_bytes,
+#             media_type=f"image/jpeg"
+#         )
+
+#     except Exception as e:  
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error during job execution: {str(e)}"
+#         )
+    
 @app.post('/api/v2/prompt')
 async def prompt2(query: dict):
     try:
         url = query.get("url", ORIGIN_IMAGE_URL)
         workflow_id = query.get("workflow_id", 1)
 
-        output = await run(url, urgent=True, workflow_id=workflow_id)
+        output = await run_easycontrol(url, workflow_id=workflow_id)
 
         base64_image = output["message"]
         decoded_bytes = base64.b64decode(base64_image)
@@ -143,7 +193,7 @@ async def prompt2(query: dict):
         )
     
 @app.post('/api/v3/prompt')
-async def prompt2(query: dict):
+async def prompt3(query: dict):
     try:
         url = query.get("url", ORIGIN_IMAGE_URL)
         workflow_id = query.get("workflow_id", 3)

@@ -109,7 +109,7 @@ switch_value = True
 async def prompt(query: dict):
     start_time = time.time()
     global switch_value
-    if switch_value:
+    if switch_value is True:
         switch_value = False
         try:
             url = query.get("url", ORIGIN_IMAGE_URL)

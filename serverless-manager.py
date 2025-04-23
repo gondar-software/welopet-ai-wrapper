@@ -9,10 +9,10 @@ load_dotenv()
 
 RUNPOD_API = os.getenv('RUNPOD_API')
 
-MAX_WORKERS = [150, 100, 20, 20]
-MIN_WORKERS = [2, 1, 1, 1]
-IDLE_TIMEOUTS = [5, 30, 30, 30]
-NUM_ENDPOINT = 4
+MAX_WORKERS = [0, 0, 20, 0, 200]
+MIN_WORKERS = [0, 0, 1, 0, 2]
+IDLE_TIMEOUTS = [5, 5, 30, 5, 30]
+NUM_ENDPOINT = 5
 
 runpod.api_key = RUNPOD_API
 requests_histories = [deque([0, 0, 0, 0], maxlen=4) for i in range(NUM_ENDPOINT)]
