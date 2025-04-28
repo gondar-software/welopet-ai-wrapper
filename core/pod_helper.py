@@ -82,7 +82,7 @@ def command_to_pod(
 ):
     ssh_port = port_mappings.get("22", 22)
     command = (
-        f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+        f"ssh -o StrictHostKeyChecking=no "
         f"root@{public_ip} -p {ssh_port} -i ./runpod.pem '{command}'"
     )
     subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -96,7 +96,7 @@ def run_comfyui_server(
         f"apt install -y screen && "
         f"mkdir -p {OUTPUT_DIRECTORY} && "
         f"cd /workspace/ComfyUI && "
-        f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-auto-launch --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
+        f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
     )
     command_to_pod(command, public_ip, port_mappings)
     check_comfyui_server_started(public_ip, port_mappings)

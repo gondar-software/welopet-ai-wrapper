@@ -6,3 +6,4 @@ asyncio
 aiohttp
 websocket_client
 pillow
+numpy

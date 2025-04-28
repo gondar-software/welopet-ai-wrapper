@@ -40,7 +40,11 @@ class Pod:
             self.pod_info = get_pod_info(self.pod_id)
 
             self.count = 0
+
+            time.sleep(3)
+
             self.state = PodState.Starting
+
             run_comfyui_server(
                 self.pod_info.public_ip,
                 self.pod_info.port_mappings
@@ -53,6 +57,7 @@ class Pod:
             self.state = PodState.Free
             self.init = False
         except Exception as e:
+            print(e)
             self.state = PodState.Terminated
 
     def queue_prompt(
@@ -69,7 +74,7 @@ class Pod:
             f"ws://{self.pod_info.public_ip}:{self.pod_info.port_mappings.get('8188', 8188)}"
         )
         try:
-            result = comfyui_helper.prompt(prompt)
+            result = comfyui_helper.prompt(prompt, self.init)
             self.count = 0
 
             if self.init:
@@ -82,6 +87,7 @@ class Pod:
                     result
                 )
         except Exception as e:
+            print(f'initialization: {e}')
             if self.init:
                 self.state = PodState.Terminated
                 return

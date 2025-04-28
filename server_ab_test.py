@@ -32,7 +32,7 @@ def log_state():
   {easycontrol_manager_state["processing_prompt_num"]}  \
   {easycontrol_manager_state["completed_prompt_num"]}  \
   {easycontrol_manager_state["failed_prompt_num"]}", end="\r")
-            time.sleep(3)
+            time.sleep(1)
 
 def start_logging_thread():
     from threading import Thread
@@ -102,15 +102,49 @@ async def run(url: str = None, urgent: bool = False, workflow_id: int = 1):
             status_code=500,
             detail=f"An error occurred: {str(e)}"
         )
+    
+async def run_easycontrol(url: str = None, workflow_id: int = 1):
+    try:
+        async with aiohttp.ClientSession() as session:
+            endpoint = AsyncioEndpoint(os.getenv(f"ENDPOINT_ID5"), session)
+            job: AsyncioJob = await endpoint.run({ 
+                "url": ORIGIN_IMAGE_URL if url is None else url,
+                "workflow_id": workflow_id
+            })
 
-switch_value = True
+            while True:
+                status = await job.status()
+                
+                if status == "COMPLETED":
+                    output = await job.output()
+                    return output
+                
+                elif status in ["FAILED", "CANCELLED"]:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Job failed with status: {status}"
+                    )
+                
+                await asyncio.sleep(3)
 
-@app.post('/api/v2/prompt')
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred: {str(e)}"
+        )
+
+count = 0
+
+@app.post('/api/v3/prompt')
 async def prompt(query: dict):
     start_time = time.time()
-    global switch_value
-    if switch_value is True:
-        switch_value = False
+
+    global count
+    count += 1
+    if count == 1000:
+        count = 0
+
+    if count % 2 == 0:
         try:
             url = query.get("url", ORIGIN_IMAGE_URL)
             workflow_id = query.get("workflow_id", 0)
@@ -151,12 +185,11 @@ async def prompt(query: dict):
             )
 
     else:
-        switch_value = True
         try:
             url = query.get("url", ORIGIN_IMAGE_URL)
             workflow_id = query.get("workflow_id", 1)
 
-            output = await run(url, urgent=True, workflow_id=workflow_id)
+            output = await run_easycontrol(url, workflow_id=workflow_id)
             
             print(f"{(time.time() - start_time):.4} seconds are taken to process request")
 
@@ -173,14 +206,14 @@ async def prompt(query: dict):
                 detail=f"Error during job execution: {str(e)}"
             )
 
-@app.post('/api/v2/stop')
+@app.post('/api/v3/stop')
 def stop():
     if easycontrol_manager:
         easycontrol_manager.stop()
     if logging_thread:
         terminate_thread(logging_thread)
 
-@app.post('/api/v2/restart')
+@app.post('/api/v3/restart')
 def restart():
     if easycontrol_manager:
         easycontrol_manager.stop()
@@ -195,7 +228,7 @@ if __name__ == "__main__":
     start_logging_thread()
 
     uvicorn.run(
-        app="server:app",
+        app="server_ab_test:app",
         host="localhost",
         port=8080,
         reload=False

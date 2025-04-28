@@ -20,7 +20,8 @@ class ComfyUIHelper:
 
     def prompt(
         self, 
-        prompt: Prompt
+        prompt: Prompt,
+        is_init = False
     ) -> str:
         with open(f"./workflows/{prompt.workflow_type.value}.json", 'r', encoding='utf-8') as file:
             workflow = json.load(file)
@@ -31,7 +32,7 @@ class ComfyUIHelper:
         # queued_workflow = self.queue_workflow(workflow)
         prompt_id = queued_workflow.get("prompt_id", "")
 
-        self.track_progress(ws, prompt_id)
+        self.track_progress(ws, prompt_id, is_init)
         
         history = self.get_history(prompt_id)[prompt_id]
         # retries = 0
@@ -107,9 +108,11 @@ class ComfyUIHelper:
     def track_progress(
         self,
         ws, 
-        prompt_id
+        prompt_id,
+        is_init = False
     ):
-        while True:
+        retries = 0
+        while retries < COLD_TIMEOUT_RETRIES if is_init else TIMEOUT_RETRIES:
             out = ws.recv()
             if isinstance(out, str):
                 message = json.loads(out)
@@ -118,6 +121,17 @@ class ComfyUIHelper:
 
                     if data['node'] is None and data['prompt_id'] == prompt_id:
                         break
+                elif message['type'] == 'execution_success':
+                    data = message['data']
+
+                    if data['prompt_id'] == prompt_id:
+                        break
+                elif message['type'] == 'execution_error':
+                    raise Exception(message['data']['exception_message'])
+                elif message['type'] == 'execution_interrupted':
+                    raise Exception('Excution interrupted')
+                else:
+                    continue
             else:
                 continue
         return

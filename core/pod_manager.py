@@ -1,8 +1,8 @@
-import threading
 import time
 import uuid
+import numpy as np
 from queue import Queue
-from threading import Thread
+from threading import Thread, Lock
 from collections import deque
 
 from .constants import *
@@ -24,9 +24,11 @@ class PodManager:
         self.processing_prompts = dict[str, Prompt]()
         self.completed_prompts = dict[str, Prompt]()
         self.failed_prompts = dict[str, Prompt]()
-        self.lock = threading.Lock()
-        self.prompts_histories = deque([0, 0, 0, 0], maxlen=4)
-        self.weights = [0.1, 0.2, 0.3, 0.4]
+        self.threads = dict[str, Thread]()
+        self.lock = Lock()
+        self.prompts_histories = deque([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ], maxlen=15)
         self.num_pods = 0
 
         self.process_thread = Thread(target=self.process)
@@ -73,21 +75,17 @@ class PodManager:
     ) -> int:
         num_prompts = self.queued_prompts.qsize() + len(self.processing_prompts)
         self.prompts_histories.append(num_prompts)
-        return round(sum(value * weight for value, weight in zip(self.prompts_histories, self.weights)) + max(num_prompts * EXTRA_POD_RATE, MIN_EXTRA_POS[self.volume_type.value]))
+        avg_load = np.average(self.prompts_histories)
+        peak_load = max(self.prompts_histories)
+        return max(MIN_PODS, min(MAX_PODS, round(avg_load * (100 - SCALING_SENSIVITY) / 100 + peak_load * (SCALING_SENSIVITY / 100))))
 
     def manage_pods(
         self
     ):
-        try:
-            while True:
+        while True:
+            try:
                 with self.lock:
                     self.num_pods = self.calc_num_pods()
-
-                    for pod in self.pods:
-                        if pod.state == PodState.Terminated:
-                            pod.destroy()
-                            self.pods.remove(pod)
-                            continue
 
                     if self.num_pods > len(self.pods):
                         number = self.num_pods - len(self.pods)
@@ -98,8 +96,9 @@ class PodManager:
                             ))
 
                 time.sleep(2)
-        except:
-            pass
+            except Exception as e:
+                print(e)
+                pass
 
     def process(
         self
@@ -130,11 +129,16 @@ class PodManager:
                                 pod.count = 0
 
                             if (pod.state == PodState.Free and self.num_pods < len(self.pods)) or \
-                                (pod.state == PodState.Processing and ((pod.init and pod.count > SERVER_CHECK_RETRIES) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
+                                (pod.state == PodState.Processing and ((pod.init and pod.count > COLD_TIMEOUT_RETRIES) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
                                 (pod.state == PodState.Starting and pod.count > SERVER_CHECK_RETRIES) or \
                                 (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES) or \
                                 (pod.state == PodState.Completed and pod.count > FREE_MAX_REMAINS):
                                 pod.state = PodState.Terminated
+                            
+                            if pod.state == PodState.Terminated:
+                                pod.destroy()
+                                self.pods.remove(pod)
+                                continue
                     except:
                         pass
 
