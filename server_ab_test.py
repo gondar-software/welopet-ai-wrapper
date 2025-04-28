@@ -155,7 +155,7 @@ async def prompt(query: dict):
                     WorkflowType(workflow_id),
                     url
                 )
-                print(f"{(time.time() - start_time):.4} seconds are taken to process request")
+                print(f"mode1: {(time.time() - start_time):.4} seconds are taken to process request")
                 if result.output_state == OutputState.Completed:
                     return Response(
                         content=result.output,
@@ -191,7 +191,7 @@ async def prompt(query: dict):
 
             output = await run_easycontrol(url, workflow_id=workflow_id)
             
-            print(f"{(time.time() - start_time):.4} seconds are taken to process request")
+            print(f"mode2: {(time.time() - start_time):.4} seconds are taken to process request")
 
             base64_image = output["message"]
             decoded_bytes = base64.b64decode(base64_image)

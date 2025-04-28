@@ -97,7 +97,7 @@ def run_comfyui_server(
         f"mkdir -p {OUTPUT_DIRECTORY} && "
         f"chmod 666 {OUTPUT_DIRECTORY} && "
         f"cd /workspace/ComfyUI && "
-        f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
+        f"screen -dmS comfyui /workspace/ComfyUI/venv/bin/python3 /workspace/ComfyUI/main.py --listen --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
     )
     command_to_pod(command, public_ip, port_mappings)
     check_comfyui_server_started(public_ip, port_mappings)

@@ -27,7 +27,7 @@ class PodManager:
         self.threads = dict[str, Thread]()
         self.lock = Lock()
         self.prompts_histories = deque([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.
             ], maxlen=15)
         self.num_pods = 0
 
@@ -77,7 +77,7 @@ class PodManager:
         self.prompts_histories.append(num_prompts)
         avg_load = np.average(self.prompts_histories)
         peak_load = max(self.prompts_histories)
-        return max(MIN_PODS, min(MAX_PODS, round(avg_load * (100 - SCALING_SENSIVITY) / 100 + peak_load * (SCALING_SENSIVITY / 100))))
+        return max(MIN_PODS, min(MAX_PODS, round(avg_load * (100. - SCALING_SENSIVITY) / 100. + peak_load * (SCALING_SENSIVITY / 100.))))
 
     def manage_pods(
         self
