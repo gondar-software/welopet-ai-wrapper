@@ -1,6 +1,5 @@
 import threading
 import ctypes
-import time
 
 def terminate_thread(thread: threading.Thread, timeout: float = 5.0) -> bool:
     """

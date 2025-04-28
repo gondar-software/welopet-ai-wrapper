@@ -21,10 +21,10 @@ class ComfyUIHelper:
             workflow = self._get_workflow(prompt.workflow_type)
             workflow = self._apply_input(workflow, prompt.input_url)
 
-            with websocket.create_connection(f"{self.ws_url}/ws?clientId={str(uuid.uuid4())}") as ws:
-                prompt_id = self._queue_workflow(workflow, ws.getheaders().get('Client-Id', ''))
-                self._track_progress(ws, prompt_id, is_init)
-                return self._get_output_data(prompt_id)
+            ws, client_id = self._open_websocket_connection()
+            prompt_id = self._queue_workflow(workflow, client_id)
+            self._track_progress(ws, prompt_id, is_init)
+            return self._get_output_data(prompt_id)
         except Exception as e:
             raise RuntimeError(f"Prompt execution failed: {str(e)}")
 
@@ -39,6 +39,12 @@ class ComfyUIHelper:
         """Apply input URL to workflow."""
         workflow["111"]["inputs"]["url_or_path"] = input_url
         return workflow
+    
+    def _open_websocket_connection(self):
+        client_id=str(uuid.uuid4())
+        ws = websocket.WebSocket()
+        ws.connect(f"{self.ws_url}/ws?clientId={client_id}")
+        return ws, client_id
 
     def _queue_workflow(self, workflow: Dict, client_id: str) -> str:
         """Queue workflow and return prompt ID."""
