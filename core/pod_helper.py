@@ -95,6 +95,7 @@ def run_comfyui_server(
         f"apt update && "
         f"apt install -y screen && "
         f"mkdir -p {OUTPUT_DIRECTORY} && "
+        f"chmod 666 {OUTPUT_DIRECTORY} && "
         f"cd /workspace/ComfyUI && "
         f"screen -dmS comfyui ./venv/bin/python3 -m main --listen --disable-metadata --output-directory {OUTPUT_DIRECTORY}"
     )
