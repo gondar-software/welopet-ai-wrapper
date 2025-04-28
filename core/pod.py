@@ -108,6 +108,7 @@ class Pod:
             delete_pod(self.pod_id)
             if self.init_thread:
                 terminate_thread(self.init_thread)
+            return True
         except:
-            pass
+            return False
         

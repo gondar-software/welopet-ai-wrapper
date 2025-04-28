@@ -43,6 +43,7 @@ class PodManager:
     ):
         with self.lock:
             total_pod_num = len(self.pods)
+            ideal_pod_num = self.num_pods
             initializing_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Initializing)
             starting_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Starting)
             free_pod_num = sum(1 for pod in self.pods if pod.state == PodState.Free)
@@ -58,6 +59,7 @@ class PodManager:
         return {
             "state": self.state,
             "total_pod_num": total_pod_num,
+            "ideal_pod_num": ideal_pod_num,
             "initializing_pod_num": initializing_pod_num,
             "starting_pod_num": starting_pod_num,
             "free_pod_num": free_pod_num,
@@ -99,7 +101,7 @@ class PodManager:
             except Exception as e:
                 print(e)
                 pass
-
+            
     def process(
         self
     ):
@@ -107,8 +109,20 @@ class PodManager:
             while True:
                 with self.lock:
                     try:
+                        if len(self.pods) > self.num_pods:
+                            excess_count = len(self.pods) - self.num_pods
+                            terminated_count = 0
+                            
+                            for pod in sorted(self.pods, key=lambda x: (x.state != PodState.Free, x.count)):
+                                if terminated_count >= excess_count:
+                                    break
+                                if pod.state == PodState.Free:
+                                    pod.state = PodState.Terminated
+                                    terminated_count += 1
+                        
                         for pod in self.pods:
                             pod.count += 1
+                            
                             if pod.state == PodState.Completed:
                                 if pod.current_prompt.result.output_state == OutputState.Completed:
                                     self.completed_prompts[pod.current_prompt.prompt_id] = pod.current_prompt
@@ -120,31 +134,32 @@ class PodManager:
                                 pod.count = 0
 
                             if pod.state == PodState.Free:
-                                if self.queued_prompts.empty():
-                                    break
-                                prompt = self.queued_prompts.get()
-                                self.processing_prompts[prompt.prompt_id] = prompt
-                                thread = Thread(target=pod.queue_prompt, args=[prompt])
-                                thread.start()
-                                pod.count = 0
+                                if not self.queued_prompts.empty():
+                                    prompt = self.queued_prompts.get()
+                                    self.processing_prompts[prompt.prompt_id] = prompt
+                                    thread = Thread(target=pod.queue_prompt, args=[prompt])
+                                    thread.start()
+                                    pod.count = 0
 
-                            if (pod.state == PodState.Free and self.num_pods < len(self.pods)) or \
-                                (pod.state == PodState.Processing and ((pod.init and pod.count > COLD_TIMEOUT_RETRIES) or (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
+                            if (pod.state == PodState.Processing and 
+                                    ((pod.init and pod.count > COLD_TIMEOUT_RETRIES) or 
+                                    (not pod.init and pod.count > TIMEOUT_RETRIES))) or \
                                 (pod.state == PodState.Starting and pod.count > SERVER_CHECK_RETRIES) or \
                                 (pod.state == PodState.Initializing and pod.count > TIMEOUT_RETRIES) or \
                                 (pod.state == PodState.Completed and pod.count > FREE_MAX_REMAINS):
                                 pod.state = PodState.Terminated
                             
                             if pod.state == PodState.Terminated:
-                                pod.destroy()
-                                self.pods.remove(pod)
+                                if pod.destroy():
+                                    self.pods.remove(pod)
                                 continue
-                    except:
-                        pass
+
+                    except Exception as e:
+                        print(f"Error in process loop: {e}")
 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
-        except:
-            pass
+        except Exception as e:
+            print(f"Process thread crashed: {e}")
         
     def queue_prompt(
         self,
@@ -194,8 +209,11 @@ class PodManager:
                 if self.state == PodManagerState.Running:
                     terminate_thread(self.manage_thread)
                     terminate_thread(self.process_thread)
-                    for pod in self.pods:
-                        pod.destroy()
+                    while len(self.pods) != 0:
+                        pod = self.pods.pop()
+                        if not pod.destroy():
+                            self.pods.append(pod)
+
                     self.pods = list[Pod]()
                     self.queued_prompts = Queue[Prompt]()
                     self.processing_prompts = dict[str, Prompt]()

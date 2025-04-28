@@ -1,4 +1,3 @@
-import os
 import json
 
 with open("./env.json", 'r', encoding='utf-8') as file:
