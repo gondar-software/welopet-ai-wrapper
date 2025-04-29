@@ -74,6 +74,7 @@ class ComfyUIHelper:
                         return
                 elif msg_type == 'execution_error':
                     raise RuntimeError(message['data']['exception_message'])
+                    continue
                 elif msg_type == 'execution_interrupted':
                     raise RuntimeError('Execution interrupted')
             except (websocket.WebSocketTimeoutException, json.JSONDecodeError):

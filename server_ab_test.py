@@ -110,7 +110,7 @@ async def run_remote_job(url: str, workflow_id: int, endpoint_id: int):
     except Exception as e:
         raise RuntimeError(f"Remote job error: {str(e)}")
 
-@app.post('/api/v3/prompt')
+@app.post('/api/v2/prompt')
 async def process_prompt(query: dict):
     start_time = time.time()
     current_count = app_state.counter.increment()
@@ -138,7 +138,7 @@ async def process_prompt(query: dict):
             output = await run_remote_job(
                 url,
                 workflow_id,
-                endpoint_id=5 if workflow_id == workflow_id in {1, 2, 4} else workflow_id
+                endpoint_id=5 if workflow_id in {1, 2, 4} else workflow_id
             )
             
             print(f"mode2: {(time.time() - start_time):.4f} seconds")
@@ -151,7 +151,7 @@ async def process_prompt(query: dict):
     except Exception as e:
         raise HTTPException(500, detail=f"Error processing request: {str(e)}")
 
-@app.post('/api/v3/stop')
+@app.post('/api/v2/stop')
 async def stop_service():
     for manager in app_state.managers.values():
         manager.stop()
@@ -159,7 +159,7 @@ async def stop_service():
         app_state.logging_thread.join(timeout=1)
     return {"status": "stopped"}
 
-@app.post('/api/v3/restart')
+@app.post('/api/v2/restart')
 async def restart_service():
     await stop_service()
     

@@ -77,7 +77,7 @@ class Pod:
             gpu_type_ids=[self.gpu_type.value]
         )
 
-    def _wait_for_pod_info(self, retries: int = 5, delay: float = 3.0) -> PodInfo:
+    def _wait_for_pod_info(self, retries: int = POD_REQUEST_RETRIES, delay: float = 3.0) -> PodInfo:
         """Wait for pod info to become available"""
         for attempt in range(retries):
             try:
@@ -115,9 +115,6 @@ class Pod:
     def queue_prompt(self, prompt: Prompt) -> Optional[PodState]:
         """Process a prompt in a thread-safe manner"""
         with self._lock:
-            if self._state != PodState.Free and not self._init:
-                return self._state
-
             self.current_prompt = prompt
             self._state = PodState.Processing
 

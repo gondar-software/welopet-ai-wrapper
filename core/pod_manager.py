@@ -112,13 +112,20 @@ class PodManager:
             for pod in sorted(self.pods, key=lambda x: (x.state != PodState.Free, x.count)):
                 if terminated_count >= excess_count:
                     break
-                if pod.state == PodState.Free:
+                if pod.state == PodState.Initializing or PodState.Starting:
+                    pod.state = PodState.Terminated
+                    terminated_count += 1
+            
+            for pod in sorted(self.pods, key=lambda x: (x.state != PodState.Free, x.count)):
+                if terminated_count >= excess_count:
+                    break
+                if pod.state == PodState.Free and pod.count > FREE_MAX_REMAINS:
                     pod.state = PodState.Terminated
                     terminated_count += 1
 
     def _process_pods(self):
         """Process each pod's state and handle prompts."""
-        pods_to_remove = []
+        pods_to_remove: list[Pod] = []
         
         for pod in self.pods:
             pod.count += 1
@@ -127,7 +134,7 @@ class PodManager:
                 self._handle_completed_pod(pod)
                 continue
                 
-            if pod.state == PodState.Free and not self.queued_prompts.empty():
+            if pod.state == PodState.Free and not pod.init and not self.queued_prompts.empty():
                 self._assign_prompt_to_pod(pod)
                 continue
                 
@@ -135,12 +142,14 @@ class PodManager:
                 pods_to_remove.append(pod)
                 continue
                 
-            if pod.state == PodState.Terminated and pod.destroy():
+            if pod.state == PodState.Terminated:
                 pods_to_remove.append(pod)
         
         for pod in pods_to_remove:
             if pod in self.pods:
                 self.pods.remove(pod)
+                while not pod.destroy():
+                    continue
 
     def _handle_completed_pod(self, pod: Pod):
         """Handle a pod that has completed processing."""
@@ -158,6 +167,7 @@ class PodManager:
         """Assign a queued prompt to a free pod."""
         prompt = self.queued_prompts.get()
         self.processing_prompts[prompt.prompt_id] = prompt
+        pod.state = PodState.Processing
         thread = Thread(target=pod.queue_prompt, args=[prompt], daemon=True)
         thread.start()
         pod.count = 0
@@ -191,6 +201,7 @@ class PodManager:
             
             time.sleep(SERVER_CHECK_DELAY / 1000)
         
+        self.processing_prompts.pop(prompt_id, None)
         return PromptResult(prompt_id, OutputState.Failed, "Time out error")
 
     def stop(self):
@@ -206,7 +217,8 @@ class PodManager:
                 
                 while self.pods:
                     pod = self.pods.pop()
-                    pod.destroy()
+                    while not pod.destroy():
+                        continue
 
     def restart(self):
         """Restart the PodManager if it was stopped."""

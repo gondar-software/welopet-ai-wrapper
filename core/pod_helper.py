@@ -59,15 +59,12 @@ class PodHelper:
         self,
         pod_id: str,
         retries: int = POD_REQUEST_RETRIES,
-        delay_ms: int = SERVER_CHECK_DELAY,
-        timeout: int = NORMAL_REQUEST_TIMEOUT
     ) -> PodInfo:
         """Get information about a specific pod."""
         for attempt in range(retries):
             try:
                 response = self.session.get(
-                    f"https://rest.runpod.io/v1/pods/{pod_id}",
-                    timeout=timeout
+                    f"https://rest.runpod.io/v1/pods/{pod_id}"
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -78,7 +75,7 @@ class PodHelper:
                         public_ip=data["publicIp"]
                     )
                 
-                time.sleep(delay_ms / 1000)
+                time.sleep(2 ** attempt / 1000)
             except RequestException as e:
                 if attempt == retries - 1:
                     raise RuntimeError(f"Failed to get pod info after {retries} attempts: {str(e)}")
