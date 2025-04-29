@@ -9,8 +9,8 @@ load_dotenv()
 
 RUNPOD_API = os.getenv('RUNPOD_API')
 
-MAX_WORKERS = [0, 0, 0, 0, 200]
-MIN_WORKERS = [0, 0, 0, 0, 2]
+MAX_WORKERS = [0, 0, 20, 0, 200]
+MIN_WORKERS = [0, 0, 1, 0, 2]
 IDLE_TIMEOUTS = [5, 5, 30, 5, 5]
 NUM_ENDPOINT = 5
 
@@ -25,8 +25,8 @@ def calc_workers(endpointId):
     num_requests = endpoint_health["jobs"]["inProgress"] + endpoint_health["jobs"]["inQueue"]
 
     requests_histories[endpointId].append(num_requests)
-    workers = min(MAX_WORKERS[endpointId], 
-        round(sum(value * weight for value, weight in zip(requests_histories[endpointId], weights)) + 0)) # max(num_requests * extra_rate, MIN_WORKERS[endpointId])))
+    workers = max(MIN_WORKERS[endpointId], min(MAX_WORKERS[endpointId], 
+        round(sum(value * weight for value, weight in zip(requests_histories[endpointId], weights)) + 0))) # max(num_requests * extra_rate, MIN_WORKERS[endpointId])))
 
     return workers
 
