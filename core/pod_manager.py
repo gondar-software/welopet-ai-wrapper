@@ -98,6 +98,7 @@ class PodManager:
                 with self.lock:
                     self._scale_down_pods()
                     self._process_pods()
+                    self._process_prompts()
                 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
             except Exception as e:
@@ -124,7 +125,7 @@ class PodManager:
                     terminated_count += 1
 
     def _process_pods(self):
-        """Process each pod's state and handle prompts."""
+        """Process each pod's state"""
         pods_to_remove: list[Pod] = []
         
         for pod in self.pods:
@@ -132,10 +133,6 @@ class PodManager:
             
             if pod.state == PodState.Completed:
                 self._handle_completed_pod(pod)
-                continue
-                
-            if pod.state == PodState.Free and not pod.init and not self.queued_prompts.empty():
-                self._assign_prompt_to_pod(pod)
                 continue
                 
             if self._check_pod_timeout(pod):
@@ -148,8 +145,26 @@ class PodManager:
         for pod in pods_to_remove:
             if pod in self.pods:
                 self.pods.remove(pod)
-                while not pod.destroy():
+                pod.destroy()
+
+    def _process_prompts(self):
+        """Handle prompts and assign pod for them"""
+        for pod in self.pods:
+            if not self.queued_prompts.empty():
+                if pod.state == PodState.Free:
+                    self._assign_prompt_to_pod(pod)
                     continue
+
+                if not pod.is_working and pod.init:
+                    self._assign_prompt_to_pod(pod)
+
+        while not self.queued_prompts.empty():
+            pod = Pod(
+                self.gpu_type,
+                self.volume_type
+            )
+            self.pods.append(pod)
+            self._assign_prompt_to_pod(pod)
 
     def _handle_completed_pod(self, pod: Pod):
         """Handle a pod that has completed processing."""
@@ -160,6 +175,7 @@ class PodManager:
             self.failed_prompts[prompt.prompt_id] = prompt
             
         self.processing_prompts.pop(prompt.prompt_id, None)
+        pod.is_working = False
         pod.state = PodState.Free
         pod.count = 0
 
@@ -168,6 +184,7 @@ class PodManager:
         prompt = self.queued_prompts.get()
         self.processing_prompts[prompt.prompt_id] = prompt
         pod.state = PodState.Processing
+        pod.is_working = True
         thread = Thread(target=pod.queue_prompt, args=[prompt], daemon=True)
         thread.start()
         pod.count = 0
@@ -217,8 +234,7 @@ class PodManager:
                 
                 while self.pods:
                     pod = self.pods.pop()
-                    while not pod.destroy():
-                        continue
+                    pod.destroy()
 
     def restart(self):
         """Restart the PodManager if it was stopped."""

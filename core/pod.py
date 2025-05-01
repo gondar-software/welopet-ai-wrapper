@@ -23,6 +23,7 @@ class Pod:
         self.pod_info = None
         self.current_prompt = None
         self.count = 0
+        self._is_working = False
         self._init_thread = threading.Thread(
             target=self._initialize_pod,
             name=f"PodInit-{volume_type.name}-{uuid.uuid4()}"
@@ -41,9 +42,24 @@ class Pod:
             self._state = value
 
     @property
+    def is_working(self) -> bool:
+        with self._lock:
+            return self._is_working
+        
+    @state.setter
+    def is_working(self, value: bool) -> None:
+        with self._lock:
+            self._is_working = value
+
+    @property
     def init(self) -> bool:
         with self._lock:
-            return self._init
+            return (
+                self.state == PodState.Initializing or \
+                self.state == PodState.Starting or \
+                (self.state == PodState.Processing and self.init) \
+                (self.state == PodState.Completed and self.init)
+            )
 
     @init.setter
     def init(self, value: bool) -> None:
@@ -77,20 +93,13 @@ class Pod:
             gpu_type_ids=[self.gpu_type.value]
         )
 
-    def _wait_for_pod_info(self, retries: int = POD_REQUEST_RETRIES, delay: float = 3.0) -> PodInfo:
+    def _wait_for_pod_info(self) -> PodInfo:
         """Wait for pod info to become available"""
-        for attempt in range(retries):
-            try:
-                pod_info = self.pod_helper.get_pod_info(self.pod_id)
-                if pod_info and pod_info.public_ip and pod_info.port_mappings:
-                    self.count = 0
-                    self.state = PodState.Starting
-                    return pod_info
-            except Exception as e:
-                if attempt == retries - 1:
-                    raise RuntimeError(f"Failed to get pod info after {retries} attempts: {e}")
-            time.sleep(delay)
-        raise RuntimeError("Pod info not available")
+        pod_info = self.pod_helper.get_pod_info(self.pod_id)
+        if pod_info and pod_info.public_ip and pod_info.port_mappings:
+            self.count = 0
+            self.state = PodState.Starting
+            return pod_info
 
     def _setup_comfyui_server(self) -> None:
         """Set up ComfyUI server with retries"""
@@ -107,13 +116,18 @@ class Pod:
             with self._lock:
                 self.count = 0
                 self._init = False
+                self._is_working = False
                 self._state = PodState.Free
         except Exception as e:
             print(f"Pod warm-up failed: {e}")
+            self._is_working = False
             self.state = PodState.Terminated
 
     def queue_prompt(self, prompt: Prompt) -> Optional[PodState]:
         """Process a prompt in a thread-safe manner"""
+        while self.init:
+            time.sleep(1)
+
         with self._lock:
             self.current_prompt = prompt
             self._state = PodState.Processing
@@ -160,7 +174,7 @@ class Pod:
         try:
             if self._init_thread and self._init_thread.is_alive():
                 terminate_thread(self._init_thread)
-            return self.pod_helper.delete_pod(self.pod_id)
+            self.pod_helper.delete_pod(self.pod_id)
         except Exception as e:
             print(f"Pod destruction failed: {e}")
             return False

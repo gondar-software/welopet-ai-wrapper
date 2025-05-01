@@ -24,7 +24,6 @@ class PodHelper:
         env_variables: Dict = BASE_ENV_VARIABLES,
         gpu_count: int = BASE_GPU_COUNT,
         ports: List[str] = BASE_PORTS,
-        retries: int = POD_REQUEST_RETRIES,
         timeout: int = NORMAL_REQUEST_TIMEOUT
     ) -> str:
         """Create a new pod with network volume."""
@@ -39,7 +38,7 @@ class PodHelper:
             "ports": ports
         }
 
-        for attempt in range(retries):
+        while True:
             try:
                 response = self.session.post(
                     "https://rest.runpod.io/v1/pods",
@@ -48,20 +47,16 @@ class PodHelper:
                 )
                 response.raise_for_status()
                 return response.json().get("id", "")
-            except RequestException as e:
-                if attempt == retries - 1:
-                    raise RuntimeError(f"Failed to create pod after {retries} attempts: {str(e)}")
-                time.sleep(2 ** attempt)
-
-        raise RuntimeError("Unexpected error in pod creation")
+            except:
+                time.sleep(1)
+                continue
 
     def get_pod_info(
         self,
-        pod_id: str,
-        retries: int = POD_REQUEST_RETRIES,
+        pod_id: str
     ) -> PodInfo:
         """Get information about a specific pod."""
-        for attempt in range(retries):
+        while True:
             try:
                 response = self.session.get(
                     f"https://rest.runpod.io/v1/pods/{pod_id}"
@@ -75,29 +70,24 @@ class PodHelper:
                         public_ip=data["publicIp"]
                     )
                 
-                time.sleep(2 ** attempt / 1000)
+                time.sleep(1)
             except RequestException as e:
-                if attempt == retries - 1:
-                    raise RuntimeError(f"Failed to get pod info after {retries} attempts: {str(e)}")
-                time.sleep(2 ** attempt)
+                time.sleep(1)
+                continue
 
-        raise RuntimeError("Pod info not available within retry limit")
-
-    def delete_pod(self, pod_id: str, retries: int = POD_REQUEST_RETRIES, timeout: int = NORMAL_REQUEST_TIMEOUT) -> bool:
+    def delete_pod(self, pod_id: str, timeout: int = NORMAL_REQUEST_TIMEOUT) -> bool:
         """Delete a pod."""
-        for attempt in range(retries):
+        while True:
             try:
                 response = self.session.delete(
                     f"https://rest.runpod.io/v1/pods/{pod_id}",
                     timeout=timeout
                 )
+                response.raise_for_status()
                 if response.status_code == 200:
-                    return True
-            except RequestException:
-                if attempt == retries - 1:
-                    raise RuntimeError(f"Failed to delete pod after {retries} attempts")
-                time.sleep(2 ** attempt)
-        return False
+                    return
+            except:
+                time.sleep(2)
 
     @staticmethod
     def execute_ssh_command(
