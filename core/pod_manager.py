@@ -23,7 +23,7 @@ class PodManager:
         self.failed_prompts: Dict[str, Prompt] = {}
         self.threads: Dict[str, Thread] = {}
         self.lock = Lock()
-        self.prompts_histories = deque([], maxlen=30)
+        self.prompts_histories = deque([], maxlen=60)
         self.num_pods = 0
         self.state = PodManagerState.Running
 
@@ -74,7 +74,7 @@ class PodManager:
         weighted_load = (avg_load * (100. - SCALING_SENSIVITY) / 100. + 
                        peak_load * (SCALING_SENSIVITY / 100.))
         
-        return MIN_PODS + min(MAX_PODS, round(weighted_load))
+        return MIN_PODS + min(MAX_PODS, round(weighted_load * 1.2))
 
     def _management_loop(self):
         """Background thread for managing pod scaling."""

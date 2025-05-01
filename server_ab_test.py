@@ -181,5 +181,5 @@ if __name__ == "__main__":
         app="server_ab_test:app",
         host="localhost",
         reload=False,
-        port=8080
+        port=8088
     )

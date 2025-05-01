@@ -53,8 +53,9 @@ if __name__ == "__main__":
     try:
         while True:
             for i in range(NUM_ENDPOINT):
-                workers = calc_workers(i)
-                update_endpoint(i, workers)
+                if i != 2:
+                    workers = calc_workers(i)
+                    update_endpoint(i, workers)
                 
             time.sleep(3)
     except KeyboardInterrupt:

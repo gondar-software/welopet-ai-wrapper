@@ -198,7 +198,7 @@ async def prompt3(query: dict):
         url = query.get("url", ORIGIN_IMAGE_URL)
         workflow_id = query.get("workflow_id", 3)
 
-        output = await run(url, urgent=True, workflow_id=workflow_id)
+        output = await run(url, workflow_id=workflow_id)
 
         base64_video = output["message"]
         decoded_bytes = base64.b64decode(base64_video)
