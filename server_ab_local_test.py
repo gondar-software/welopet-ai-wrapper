@@ -12,7 +12,7 @@ import time
 from typing import Dict
 from threading import Thread, Lock
 
-from core.pod_manager import *
+from core.pod_manager_test import *
 
 load_dotenv()
 
@@ -120,7 +120,7 @@ async def process_prompt(query: dict):
         workflow_id = query.get("workflow_id", 1)
         
         if current_count % 2 == 0:
-            if workflow_id in {1, 2, 4, 5}:
+            if workflow_id in {1, 2, 4}:
                 result = await asyncio.to_thread(
                     app_state.managers["easycontrol"].queue_prompt,
                     WorkflowType(workflow_id),
@@ -138,7 +138,7 @@ async def process_prompt(query: dict):
             output = await run_remote_job(
                 url,
                 workflow_id,
-                endpoint_id=5 if workflow_id in {1, 2, 4, 5} else workflow_id
+                endpoint_id=5 if workflow_id in {1, 2, 4} else workflow_id
             )
             
             print(f"mode2: {(time.time() - start_time):.4f} seconds")
@@ -178,8 +178,8 @@ if __name__ == "__main__":
     import uvicorn
     
     uvicorn.run(
-        app="server_ab_test:app",
+        app="server_ab_local_test:app",
         host="localhost",
         reload=False,
-        port=8088
+        port=8080
     )

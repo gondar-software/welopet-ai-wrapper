@@ -11,7 +11,7 @@ from .utils import *
 from .constants import *
 
 class Pod:
-    def __init__(self, gpu_type: GPUType, volume_type: VolumeType):
+    def __init__(self, gpu_type: GPUType, volume_type: VolumeType, is_working = False):
         self.pod_helper = PodHelper(RUNPOD_API)
         self.volume_id = self._get_volume_id(volume_type)
         self.gpu_type = gpu_type
@@ -23,6 +23,7 @@ class Pod:
         self.pod_info = None
         self.current_prompt = None
         self.count = 0
+        self._is_working = is_working
         self._init_thread = threading.Thread(
             target=self._initialize_pod,
             name=f"PodInit-{volume_type.name}-{uuid.uuid4()}"
@@ -41,9 +42,23 @@ class Pod:
             self._state = value
 
     @property
+    def is_working(self) -> bool:
+        with self._lock:
+            return self._is_working
+        
+    @state.setter
+    def is_working(self, value: bool) -> None:
+        with self._lock:
+            self._is_working = value
+
+    @property
     def init(self) -> bool:
         with self._lock:
-            return self._init
+            return (
+                self.state == PodState.Initializing or 
+                self.state == PodState.Starting or 
+                (self.state == PodState.Processing and self._init)
+            )
 
     @init.setter
     def init(self, value: bool) -> None:
@@ -73,7 +88,7 @@ class Pod:
         """Create pod and return pod ID"""
         return self.pod_helper.create_pod(
             self.volume_id,
-            f"pod-{self.volume_type.name}-{uuid.uuid4()}",
+            f"pod-test-{self.volume_type.name}-{uuid.uuid4()}",
             gpu_type_ids=[self.gpu_type.value]
         )
 
@@ -96,17 +111,22 @@ class Pod:
     def _warm_up_pod(self) -> None:
         """Warm up pod with base prompt"""
         try:
-            self.queue_prompt(Prompt.get_base_prompt(self.volume_type))
+            self.queue_prompt(Prompt.get_base_prompt(self.volume_type), True)
             with self._lock:
                 self.count = 0
                 self._init = False
+                self._is_working = False
                 self._state = PodState.Free
         except Exception as e:
             print(f"Pod warm-up failed: {e}")
+            self._is_working = False
             self.state = PodState.Terminated
 
-    def queue_prompt(self, prompt: Prompt) -> Optional[PodState]:
+    def queue_prompt(self, prompt: Prompt, is_init = False) -> Optional[PodState]:
         """Process a prompt in a thread-safe manner"""
+        while self.init and not is_init:
+            time.sleep(1)
+
         with self._lock:
             self.current_prompt = prompt
             self._state = PodState.Processing

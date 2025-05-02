@@ -17,6 +17,7 @@ class WorkflowType(Enum):
     Snoopy = 2
     MagicVideo = 3
     _3DCartoon = 4
+    Labubu = 5
 
 class VolumeType(Enum):
     EasyControl = 0

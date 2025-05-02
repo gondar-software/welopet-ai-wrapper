@@ -7,7 +7,7 @@ from collections import deque
 from typing import Dict, List
 
 from .constants import *
-from .pod import *
+from .pod_test import *
 from .enums import *
 from .types import *
 from .utils import *
@@ -97,7 +97,11 @@ class PodManager:
             try:
                 with self.lock:
                     self._scale_down_pods()
+                    print(1)
                     self._process_pods()
+                    print(2)
+                    self._process_prompts()
+                    print(3)
                 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
             except Exception as e:
@@ -112,7 +116,7 @@ class PodManager:
             for pod in sorted(self.pods, key=lambda x: (x.state != PodState.Free, x.count)):
                 if terminated_count >= excess_count:
                     break
-                if pod.init:
+                if pod.init and not pod.is_working:
                     pod.state = PodState.Terminated
                     terminated_count += 1
             
@@ -133,10 +137,6 @@ class PodManager:
             if pod.state == PodState.Completed:
                 self._handle_completed_pod(pod)
                 continue
-
-            if pod.state == PodState.Free and not pod.init and not self.queued_prompts.empty():
-                self._assign_prompt_to_pod(pod)
-                continue
                 
             if self._check_pod_timeout(pod):
                 pods_to_remove.append(pod)
@@ -150,6 +150,29 @@ class PodManager:
                 pod.destroy()
                 self.pods.remove(pod)
 
+    def _process_prompts(self):
+        """Handle prompts and assign pod for them"""
+        for pod in self.pods:
+            if not self.queued_prompts.empty():
+                if pod.state == PodState.Free:
+                    self._assign_prompt_to_pod(pod)
+                    continue
+
+        for pod in self.pods:
+            if not self.queued_prompts.empty():
+                if not pod.is_working and pod.init:
+                    self._assign_prompt_to_pod(pod)
+                    continue
+
+        while not self.queued_prompts.empty():
+            pod = Pod(
+                self.gpu_type,
+                self.volume_type,
+                is_working=True
+            )
+            self.pods.append(pod)
+            self._assign_prompt_to_pod(pod)
+
     def _handle_completed_pod(self, pod: Pod):
         """Handle a pod that has completed processing."""
         prompt = pod.current_prompt
@@ -159,6 +182,7 @@ class PodManager:
             self.failed_prompts[prompt.prompt_id] = prompt
             
         self.processing_prompts.pop(prompt.prompt_id, None)
+        pod.is_working = False
         pod.state = PodState.Free
         pod.count = 0
 
@@ -166,7 +190,7 @@ class PodManager:
         """Assign a queued prompt to a pod."""
         prompt = self.queued_prompts.get()
         self.processing_prompts[prompt.prompt_id] = prompt
-        pod.state = PodState.Processing
+        pod.is_working = True
         thread = Thread(target=pod.queue_prompt, args=[prompt], daemon=True)
         thread.start()
         pod.count = 0
