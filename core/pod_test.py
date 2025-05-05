@@ -54,11 +54,7 @@ class Pod:
     @property
     def init(self) -> bool:
         with self._lock:
-            return (
-                self.state == PodState.Initializing or 
-                self.state == PodState.Starting or 
-                (self.state == PodState.Processing and self._init)
-            )
+            return self._init
 
     @init.setter
     def init(self, value: bool) -> None:
@@ -115,11 +111,10 @@ class Pod:
             with self._lock:
                 self.count = 0
                 self._init = False
-                self._is_working = False
                 self._state = PodState.Free
         except Exception as e:
             print(f"Pod warm-up failed: {e}")
-            self._is_working = False
+            self.is_working = False
             self.state = PodState.Terminated
 
     def queue_prompt(self, prompt: Prompt, is_init = False) -> Optional[PodState]:
@@ -145,6 +140,8 @@ class Pod:
                     self._state = PodState.Free
                     return None
                 
+                if self._is_working:
+                    self._is_working = False
                 prompt.result = PromptResult(
                     prompt.prompt_id,
                     OutputState.Completed,
@@ -157,6 +154,8 @@ class Pod:
                     self._state = PodState.Terminated
                     return None
                 
+                if self._is_working:
+                    self._is_working = False
                 prompt.result = PromptResult(
                     prompt.prompt_id,
                     OutputState.Failed,

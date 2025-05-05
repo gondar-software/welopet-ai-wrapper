@@ -19,11 +19,13 @@ class PodManager:
         self.pods: List[Pod] = []
         self.queued_prompts = Queue[Prompt]()
         self.processing_prompts: Dict[str, Prompt] = {}
+        self.processing_threads: Dict[str, Thread] = {}
+        self.processing_pods: Dict[str, Pod] = {}
         self.completed_prompts: Dict[str, Prompt] = {}
         self.failed_prompts: Dict[str, Prompt] = {}
         self.threads: Dict[str, Thread] = {}
         self.lock = Lock()
-        self.prompts_histories = deque([], maxlen=60)
+        self.prompts_histories = deque([], maxlen=45)
         self.num_pods = 0
         self.state = PodManagerState.Running
 
@@ -97,11 +99,8 @@ class PodManager:
             try:
                 with self.lock:
                     self._scale_down_pods()
-                    print(1)
                     self._process_pods()
-                    print(2)
                     self._process_prompts()
-                    print(3)
                 
                 time.sleep(SERVER_CHECK_DELAY / 1000)
             except Exception as e:
@@ -190,9 +189,10 @@ class PodManager:
         """Assign a queued prompt to a pod."""
         prompt = self.queued_prompts.get()
         self.processing_prompts[prompt.prompt_id] = prompt
+        self.processing_pods[prompt.prompt_id] = pod
         pod.is_working = True
-        thread = Thread(target=pod.queue_prompt, args=[prompt], daemon=True)
-        thread.start()
+        self.processing_threads[prompt.prompt_id] = Thread(target=pod.queue_prompt, args=[prompt], daemon=True)
+        self.processing_threads[prompt.prompt_id].start()
         pod.count = 0
 
     def _check_pod_timeout(self, pod: Pod) -> bool:
@@ -214,18 +214,33 @@ class PodManager:
         with self.lock:
             self.queued_prompts.put(prompt)
 
-        for _ in range(SERVER_CHECK_RETRIES):
+        for _ in range(TIMEOUT_RETRIES):
             with self.lock:
                 if prompt_id in self.completed_prompts:
+                    self._clear_prompt_processing_data(prompt_id)
                     return self.completed_prompts.pop(prompt_id).result
                 
                 if prompt_id in self.failed_prompts:
+                    self._clear_prompt_processing_data(prompt_id)
                     return self.failed_prompts.pop(prompt_id).result
             
             time.sleep(SERVER_CHECK_DELAY / 1000)
         
-        self.processing_prompts.pop(prompt_id, None)
+        self._clear_prompt_processing_data(prompt_id)
+        self.completed_prompts.pop(prompt_id, None)
+        self.failed_prompts.pop(prompt_id, None)
+
         return PromptResult(prompt_id, OutputState.Failed, "Time out error")
+    
+    def _clear_prompt_processing_data(self, prompt_id: str):
+        """Clear prompt processing data."""
+        thread = self.processing_threads.pop(prompt_id, None)
+        if thread:
+            terminate_thread(thread)
+        pod = self.processing_pods.pop(prompt_id, None)
+        if pod:
+            pod.is_working = False
+        self.processing_prompts.pop(prompt_id, None)
 
     def stop(self):
         """Stop the PodManager and clean up resources."""
@@ -237,6 +252,9 @@ class PodManager:
                 self.processing_prompts.clear()
                 self.completed_prompts.clear()
                 self.failed_prompts.clear()
+
+                for thread in self.processing_threads.values():
+                    terminate_thread(thread)
                 
                 while self.pods:
                     pod = self.pods.pop()

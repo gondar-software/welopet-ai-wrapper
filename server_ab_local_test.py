@@ -2,6 +2,7 @@ import base64
 import asyncio
 import aiohttp
 import runpod
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -56,6 +57,8 @@ async def log_state():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    set_max_threads()
+
     app_state.managers["easycontrol"] = PodManager(
         GPUType.RTXA6000,
         VolumeType.EasyControl
@@ -120,7 +123,7 @@ async def process_prompt(query: dict):
         workflow_id = query.get("workflow_id", 1)
         
         if current_count % 2 == 0:
-            if workflow_id in {1, 2, 4}:
+            if workflow_id in {1, 2, 4, 5}:
                 result = await asyncio.to_thread(
                     app_state.managers["easycontrol"].queue_prompt,
                     WorkflowType(workflow_id),
@@ -138,7 +141,7 @@ async def process_prompt(query: dict):
             output = await run_remote_job(
                 url,
                 workflow_id,
-                endpoint_id=5 if workflow_id in {1, 2, 4} else workflow_id
+                endpoint_id=5 if workflow_id in {1, 2, 4, 5} else workflow_id
             )
             
             print(f"mode2: {(time.time() - start_time):.4f} seconds")
@@ -173,6 +176,12 @@ async def restart_service():
     )
     app_state.logging_thread.start()
     return {"status": "restarted"}
+
+def set_max_threads():
+    new_max_workers = 150
+    executor = ThreadPoolExecutor(max_workers=new_max_workers)
+    loop = asyncio.get_event_loop()
+    loop.set_default_executor(executor)
 
 if __name__ == "__main__":
     import uvicorn
